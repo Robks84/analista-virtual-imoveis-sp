@@ -1,0 +1,242 @@
+# =============================================================================
+# CAMADA SEMÂNTICA — Transações imobiliárias com ITBI pago (São Paulo, 2024–2025)
+# Fonte: Prefeitura de SP / Secretaria Municipal da Fazenda (dados abertos)
+# Banco: data/processed/itbi.db (SQLite) — modelo estrela (1 fato + 6 dimensões)
+#
+# Este arquivo é a "memória do analista": tudo o que um analista de BI sabe de
+# cabeça sobre a base e que a LLM NÃO consegue adivinhar olhando só o schema.
+# =============================================================================
+
+dominio:
+  nome: "Mercado imobiliário da cidade de São Paulo (transações com ITBI pago)"
+  periodo_disponivel: "jan/2024 a dez/2025 (24 meses, por mês de PAGAMENTO do ITBI)"
+  granularidade: "1 linha = 1 Declaração de Transação Imobiliária (DTI) com ITBI pago"
+  moeda: "R$ nominais (sem correção pela inflação)"
+  dialeto_sql: "SQLite"
+  escopo_responde:
+    - "Quantidade de transações, volume financeiro, valor médio, preço do m²"
+    - "Recortes por mês/trimestre/ano, bairro, zona, tipo de imóvel, tipo de transação, financiamento"
+    - "Comparações e variações entre períodos (2024 x 2025)"
+  escopo_nao_responde:
+    - "Previsões de preço, recomendação de compra/investimento, aluguel"
+    - "Dados de compradores/vendedores (a base não tem nomes nem CPF)"
+    - "Outras cidades ou períodos fora de 2024–2025"
+    - "Qualquer assunto que não seja transações imobiliárias de SP"
+
+tabelas:
+  fato_transacoes:
+    descricao: "Fato. Uma linha por guia de ITBI paga (uma transação imobiliária)."
+    chave: [transacao_id]
+    colunas:
+      transacao_id: "Identificador artificial da transação (PK)"
+      mes_id: "FK dim_tempo. Mês de PAGAMENTO do ITBI no formato AAAAMM (ex.: 202503). É a data padrão de análise."
+      setor_fiscal: "FK dim_local. Setor fiscal do IPTU (3 primeiros dígitos do cadastro SQL) — unidade geográfica."
+      natureza_id: "FK dim_natureza. Tipo de negócio (1 = compra e venda)."
+      financiamento_id: "FK dim_financiamento. 0 = sem financiamento."
+      uso_id: "FK dim_uso. Uso do imóvel segundo o IPTU (apartamento, casa, terreno, loja...)."
+      padrao_id: "FK dim_padrao. Padrão construtivo segundo o IPTU."
+      sql_cadastro: "Número do cadastro do imóvel no IPTU (11 dígitos). Vários registros podem ter o mesmo SQL (unidades de um empreendimento ainda não desmembrado)."
+      cep: "CEP do logradouro (texto, 8 dígitos)"
+      bairro_informado: "Bairro como veio no cadastro, normalizado. MUITO incompleto (~40% nulo). NÃO usar para agrupar por bairro: use dim_local.bairro."
+      data_transacao: "Data da escritura/contrato (texto AAAA-MM-DD). Pode ser anterior ao ano do pagamento. Usar só se a pergunta pedir explicitamente a data do negócio/escritura."
+      valor_transacao: "Valor declarado do negócio, em R$."
+      valor_venal_referencia: "Valor venal de referência do imóvel INTEIRO (cadastro), em R$."
+      proporcao_transmitida_pct: "Percentual do imóvel transmitido (100 = imóvel inteiro)."
+      valor_venal_ref_proporcional: "Valor venal de referência × proporção transmitida, em R$."
+      base_calculo: "Base de cálculo do ITBI = maior valor entre valor_transacao e valor_venal_ref_proporcional, em R$."
+      valor_financiado: "Valor financiado pelo banco, em R$ (0 quando não há financiamento)."
+      area_terreno_m2: "Área do terreno do lote, em m²."
+      area_construida_m2: "Área construída em m² (inclui quota de áreas comuns em condomínio). NULL quando 0."
+      fracao_ideal: "Fração ideal do terreno (1 = imóvel fora de condomínio)."
+      ano_construcao: "Ano de conclusão da construção (ACC do IPTU). NULL para terrenos."
+      situacao_sql: "Situação do cadastro no IPTU: Ativo Predial | Ativo Territorial | Cancelado Predial | Cancelado Territorial | Não_Existe_Exercício"
+      cartorio: "Cartório de Registro de Imóveis (ex.: '11º Cartório de Registro de Imóvel')"
+      valor_valido: "Flag 1/0. 1 quando valor_transacao >= R$ 10.000 (abaixo disso são frações, cessões simbólicas ou erros)."
+      elegivel_m2: "Flag 1/0. 1 quando a transação serve para preço do m²: compra e venda, imóvel inteiro (100%), uso residencial, área entre 15 e 2.000 m² e preço entre R$ 500 e R$ 50 mil/m²."
+      preco_m2: "valor_transacao / area_construida_m2, preenchido SOMENTE quando elegivel_m2 = 1 (R$/m²)."
+
+  dim_tempo:
+    descricao: "Calendário mensal (mês de pagamento do ITBI). 24 linhas."
+    chave: [mes_id]
+    colunas:
+      mes_id: "AAAAMM (inteiro). Ex.: 202412"
+      ano_mes: "Texto 'AAAA-MM'. Ex.: '2024-12'"
+      ano: "2024 ou 2025"
+      mes: "1 a 12"
+      nome_mes: "Jan, Fev, Mar, Abr, Mai, Jun, Jul, Ago, Set, Out, Nov, Dez"
+      trimestre: "1 a 4"
+      semestre: "1 ou 2"
+
+  dim_local:
+    descricao: "Localização. Uma linha por setor fiscal do IPTU (288 setores). Vários setores podem ter o mesmo nome de bairro."
+    chave: [setor_fiscal]
+    colunas:
+      setor_fiscal: "Código de 3 dígitos (texto), ex.: '013'"
+      bairro: "Bairro de referência do setor, MAIÚSCULO e SEM ACENTO (ex.: 'PINHEIROS', 'VILA MARIANA', 'SAO MIGUEL PAULISTA')"
+      zona: "Zona aproximada pelo CEP: Centro | Norte | Sul | Leste | Oeste"
+
+  dim_natureza:
+    descricao: "Natureza (tipo de negócio jurídico) da transação."
+    chave: [natureza_id]
+    colunas:
+      natureza_id: "Código. 1 = Compra e venda; 4 = Arrematação (leilão); 15 = Permuta; 17 = Retomada por alienação fiduciária (inadimplência)"
+      descricao: "Descrição oficial (ex.: 'Compra e venda', 'Arrematação (em leilão ou hasta pública)')"
+      grupo: "Compra e venda | Judicial / retomada | Societária | Família / sucessão | Outras"
+
+  dim_financiamento:
+    descricao: "Modalidade de financiamento declarada."
+    chave: [financiamento_id]
+    colunas:
+      financiamento_id: "0 = Sem financiamento; 1 = SFH; 2 = Minha Casa Minha Vida; 3 = Consórcio; 99 = SFI/Carteira Hipotecária"
+      descricao: "Descrição da modalidade"
+      financiado: "1 se houve financiamento, 0 se não"
+
+  dim_uso:
+    descricao: "Uso do imóvel segundo o IPTU (tabela oficial da Prefeitura)."
+    chave: [uso_id]
+    colunas:
+      uso_id: "Código do uso. 0 = terreno; 10 = residência (casa); 20 = apartamento em condomínio; 24 = vaga de garagem residencial; 40 = loja"
+      descricao: "Descrição oficial do uso"
+      categoria: "Terreno | Residencial horizontal (casa) | Residencial vertical (apartamento/flat) | Garagem | Comercial / escritório / loja | Industrial / galpão / serviço | Institucional / outros"
+
+  dim_padrao:
+    descricao: "Padrão construtivo segundo o IPTU (tabela oficial)."
+    chave: [padrao_id]
+    colunas:
+      padrao_id: "Código do padrão"
+      tipo: "RESIDENCIAL HORIZONTAL | RESIDENCIAL VERTICAL | COMERCIAL HORIZONTAL | COMERCIAL VERTICAL | TERRENO | ..."
+
+relacionamentos:
+  - "fato_transacoes.mes_id = dim_tempo.mes_id"
+  - "fato_transacoes.setor_fiscal = dim_local.setor_fiscal"
+  - "fato_transacoes.natureza_id = dim_natureza.natureza_id"
+  - "fato_transacoes.financiamento_id = dim_financiamento.financiamento_id"
+  - "fato_transacoes.uso_id = dim_uso.uso_id"
+  - "fato_transacoes.padrao_id = dim_padrao.padrao_id"
+
+metricas:
+  qtd_transacoes:
+    descricao: "Número de transações (guias de ITBI pagas)"
+    sql: "COUNT(*)"
+    filtro: null
+    unidade: "transações"
+  qtd_compras_vendas:
+    descricao: "Número de transações de compra e venda"
+    sql: "COUNT(*)"
+    filtro: "f.natureza_id = 1"
+    unidade: "transações"
+  volume_financeiro:
+    descricao: "Soma dos valores declarados das transações (volume negociado)"
+    sql: "SUM(f.valor_transacao)"
+    filtro: "f.valor_valido = 1"
+    unidade: "R$"
+  valor_medio:
+    descricao: "Valor médio (ticket médio) por transação"
+    sql: "AVG(f.valor_transacao)"
+    filtro: "f.valor_valido = 1"
+    unidade: "R$"
+  preco_medio_m2:
+    descricao: "Preço médio do metro quadrado de imóveis residenciais vendidos inteiros"
+    sql: "AVG(f.preco_m2)"
+    filtro: "f.elegivel_m2 = 1"
+    unidade: "R$/m²"
+  area_media_m2:
+    descricao: "Área construída média dos imóveis residenciais vendidos (mesma base do preço do m²)"
+    sql: "AVG(f.area_construida_m2)"
+    filtro: "f.elegivel_m2 = 1"
+    unidade: "m²"
+  pct_financiadas:
+    descricao: "Percentual das compras e vendas que tiveram financiamento"
+    sql: "100.0 * SUM(CASE WHEN f.financiamento_id <> 0 THEN 1 ELSE 0 END) / COUNT(*)"
+    filtro: "f.natureza_id = 1"
+    unidade: "%"
+  valor_financiado_total:
+    descricao: "Soma do crédito imobiliário (valor financiado)"
+    sql: "SUM(f.valor_financiado)"
+    filtro: "f.financiamento_id <> 0"
+    unidade: "R$"
+  pct_financiado_do_valor:
+    descricao: "Quanto do valor do imóvel foi financiado, em média (LTV), entre as transações financiadas"
+    sql: "100.0 * AVG(f.valor_financiado / f.valor_transacao)"
+    filtro: "f.financiamento_id <> 0 AND f.valor_valido = 1"
+    unidade: "%"
+  base_calculo_total:
+    descricao: "Soma da base de cálculo do ITBI"
+    sql: "SUM(f.base_calculo)"
+    filtro: null
+    unidade: "R$"
+  pct_declarado_abaixo_venal:
+    descricao: "Percentual de transações cujo valor declarado ficou abaixo do valor venal de referência proporcional"
+    sql: "100.0 * SUM(CASE WHEN f.valor_transacao < f.valor_venal_ref_proporcional THEN 1 ELSE 0 END) / COUNT(*)"
+    filtro: "f.valor_valido = 1"
+    unidade: "%"
+  variacao_percentual:
+    descricao: "Variação % de qualquer métrica entre dois períodos"
+    sql: "100.0 * (valor_periodo_atual - valor_periodo_anterior) / valor_periodo_anterior"
+    filtro: null
+    unidade: "%"
+    exemplo: "Calcular a métrica por período com CASE WHEN dentro do agregado, ex.: AVG(CASE WHEN t.ano = 2025 THEN f.preco_m2 END)"
+
+sinonimos:
+  qtd_transacoes: [transações, negócios, guias, quantas transações, movimentação, número de negócios]
+  qtd_compras_vendas: [vendas, compras, imóveis vendidos, quantos imóveis foram vendidos, quantas vendas]
+  volume_financeiro: [volume, valor total, quanto movimentou, VGV, total negociado, dinheiro movimentado]
+  valor_medio: [ticket médio, preço médio, valor médio do imóvel, quanto custa em média]
+  preco_medio_m2: [preço do metro quadrado, m², metro quadrado, valor do m², R$/m²]
+  pct_financiadas: [percentual financiado, quantos usaram financiamento, participação do crédito]
+  valor_financiado_total: [crédito imobiliário, total financiado, empréstimo]
+  dim_uso.categoria = 'Residencial vertical (apartamento/flat)': [apartamento, apto, flat, prédio residencial]
+  dim_uso.categoria = 'Residencial horizontal (casa)': [casa, sobrado, residência]
+  dim_uso.categoria = 'Terreno': [terreno, lote]
+  dim_uso.categoria = 'Garagem': [vaga, vaga de garagem, box]
+  dim_uso.categoria = 'Comercial / escritório / loja': [comercial, sala comercial, escritório, loja, conjunto comercial]
+  dim_natureza.natureza_id = 4: [leilão, arrematação, imóveis de leilão]
+  dim_natureza.natureza_id = 17: [retomada, inadimplência, consolidação da propriedade pelo banco]
+  dim_financiamento.financiamento_id = 2: [MCMV, Minha Casa Minha Vida, habitação popular]
+  dim_financiamento.financiamento_id = 1: [SFH, sistema financeiro de habitação]
+  dim_local.zona: [região, zona sul, zona leste, zona norte, zona oeste, centro]
+  dim_local.bairro: [bairro, região do bairro, vizinhança]
+
+regras_de_negocio:
+  - "O tempo padrão é o MÊS DE PAGAMENTO do ITBI (dim_tempo via mes_id). 'Transações em 2024' = t.ano = 2024. Só use data_transacao se a pergunta falar explicitamente em data da escritura/contrato/negócio."
+  - "'Vendas', 'compras' ou 'imóveis vendidos' = compra e venda (f.natureza_id = 1). 'Transações' sem qualificação = todas as naturezas."
+  - "Métricas de VALOR (volume, valor médio) sempre com f.valor_valido = 1. Contagens não usam esse filtro."
+  - "Preço do m² SEMPRE com f.elegivel_m2 = 1 e usando a coluna f.preco_m2. Nunca dividir valor por área construída de transações não elegíveis (em empreendimentos novos a área é do prédio inteiro)."
+  - "Agrupar ou filtrar por bairro SEMPRE com dim_local.bairro (texto MAIÚSCULO e SEM ACENTO). Para filtrar um bairro use igualdade ou LIKE, ex.: l.bairro = 'VILA MARIANA'. Não use bairro_informado."
+  - "Ao ranquear bairros por média (preço do m², valor médio), exigir volume mínimo: HAVING COUNT(*) >= 100, para evitar médias de poucos casos."
+  - "'Último mês' = 2025-12; 'último trimestre' = 4º trimestre de 2025; 'último ano'/'ano passado' = 2025; 'este ano' é ambíguo (dados vão até 2025) — assumir 2025 e avisar."
+  - "Comparações de crescimento entre anos usam 2024 como base e 2025 como atual."
+  - "Valores em R$ nominais. Arredondar valores monetários a 2 casas e percentuais a 1 casa."
+  - "A base não tem dados de pessoas (compradores/vendedores) nem de aluguel; perguntas sobre isso estão fora de escopo."
+  - "NUNCA invente valores de texto em filtros. Para tipo de imóvel use u.categoria com um dos valores exatos listados; para natureza e financiamento prefira os códigos (f.natureza_id, f.financiamento_id). Os sinônimos de valores mostram o filtro certo (ex.: apartamento -> u.categoria = 'Residencial vertical (apartamento/flat)'; leilão -> f.natureza_id = 4; MCMV -> f.financiamento_id = 2)."
+  - "Vagas de garagem, lojas, salas comerciais, terrenos, galpões e casas SÃO imóveis da base (dim_uso.categoria) e estão dentro do escopo."
+  - "Séries mensais de um ano: agrupe e devolva t.mes (1 a 12). Comparação do mesmo mês entre anos: agrupe por t.mes e calcule uma coluna por ano com CASE WHEN t.ano = ... Não use mes_id (AAAAMM) como rótulo de mês."
+
+exemplos:
+  # Exemplos de consulta escritos para ensinar o padrão (NÃO fazem parte do golden set)
+  - pergunta: "Quantas transações de imóveis comerciais tivemos em 2025?"
+    sql: |
+      SELECT COUNT(*) AS qtd_transacoes
+      FROM fato_transacoes f
+      JOIN dim_tempo t ON f.mes_id = t.mes_id
+      JOIN dim_uso u ON f.uso_id = u.uso_id
+      WHERE t.ano = 2025 AND u.categoria = 'Comercial / escritório / loja'
+  - pergunta: "Preço médio do m² por zona em 2024"
+    sql: |
+      SELECT l.zona, ROUND(AVG(f.preco_m2), 2) AS preco_medio_m2, COUNT(*) AS qtd
+      FROM fato_transacoes f
+      JOIN dim_tempo t ON f.mes_id = t.mes_id
+      JOIN dim_local l ON f.setor_fiscal = l.setor_fiscal
+      WHERE t.ano = 2024 AND f.elegivel_m2 = 1
+      GROUP BY l.zona
+      ORDER BY preco_medio_m2 DESC
+  - pergunta: "Como variou o número de vendas em Santana de 2024 para 2025?"
+    sql: |
+      SELECT SUM(CASE WHEN t.ano = 2024 THEN 1 ELSE 0 END) AS vendas_2024,
+             SUM(CASE WHEN t.ano = 2025 THEN 1 ELSE 0 END) AS vendas_2025,
+             ROUND(100.0 * (SUM(CASE WHEN t.ano = 2025 THEN 1 ELSE 0 END) - SUM(CASE WHEN t.ano = 2024 THEN 1 ELSE 0 END))
+                   / SUM(CASE WHEN t.ano = 2024 THEN 1 ELSE 0 END), 1) AS variacao_pct
+      FROM fato_transacoes f
+      JOIN dim_tempo t ON f.mes_id = t.mes_id
+      JOIN dim_local l ON f.setor_fiscal = l.setor_fiscal
+      WHERE f.natureza_id = 1 AND l.bairro = 'SANTANA'

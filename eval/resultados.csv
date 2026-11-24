@@ -1,0 +1,362 @@
+rodada,id,nivel,tipo_esperado,pergunta,classificacao,acertou,motivo,sql_gerado,tentativas_sql,sql_valido_1a,tempo_s,chamadas_llm,tokens_entrada,tokens_saida,resposta,erro
+antes,F01,facil,dados,Quantas transações com ITBI pago tivemos em 2024?,dados,1,resultado confere,"SELECT COUNT(*) AS qtd_transacoes
+FROM fato_transacoes f
+JOIN dim_tempo t ON f.mes_id = t.mes_id
+WHERE t.ano = 2024
+LIMIT 200",1,1,2.8,4,5330,591,"**Resposta direta**   Foram registradas **217.079** transações com ITBI pago em 2024.  **Destaques**   - O volume supera 200 mil guias, indicando alta atividade no mercado naquele ano.   - Como a métrica conta apenas guias pagas, o número reflete efetivamente transações concluídas.   - Não há comparativo direto no resultado, mas o total já é expressivo para um único ano calendário.  **Ressalvas**   - O cálculo considera apenas o número de guias de ITBI pagas (campo `qtd_transacoes`).   - Não há ",
+antes,F02,facil,dados,Quantos imóveis foram vendidos em 2025?,dados,1,resultado confere,"SELECT COUNT(*) AS qtd_imoveis_vendidos
+FROM fato_transacoes f
+JOIN dim_tempo t ON f.mes_id = t.mes_id
+WHERE t.ano = 2025 AND f.natureza_id = 1
+LIMIT 200",1,1,26.78,4,5265,553,"**Resposta direta**   Foram vendidos **205.488 imóveis** em 2025.  **Destaques**   - O volume de vendas supera 200 mil unidades, indicando alta atividade no mercado.   - Como a contagem considera apenas transações de compra e venda (natureza_id = 1), o número exclui locações e outras naturezas.   - O resultado provém de um único ano, sem comparativo direto com anos anteriores.  **Ressalvas**   - O total inclui todas as transações registradas na base para 2025; imóveis com natureza diferente de c",
+antes,F03,facil,dados,Qual foi o valor médio das transações em 2025?,dados,1,resultado confere,"SELECT ROUND(AVG(f.valor_transacao), 2) AS valor_medio
+FROM fato_transacoes f
+JOIN dim_tempo t ON f.mes_id = t.mes_id
+WHERE t.ano = 2025 AND f.valor_valido = 1
+LIMIT 200",1,1,45.03,4,5322,591,"**Resposta direta**   O valor médio das transações em 2025 foi de **R$ 651.255,61**.  **Destaques**   - Valor médio acima de meio milhão de reais, indicando transações de porte elevado.   - Média calculada considerando todas as naturezas de transação e apenas registros marcados como válidos.   - Não há comparação direta com outros anos no resultado, mas o valor sugere um patamar alto para o período.  **Ressalvas**   - O cálculo usa o ano de pagamento do ITBI como referência temporal.   - Apenas ",
+antes,F04,facil,dados,Qual foi o volume financeiro total negociado em 2024?,dados,1,resultado confere,"SELECT ROUND(SUM(f.valor_transacao), 2) AS volume_financeiro_total
+FROM fato_transacoes f
+JOIN dim_tempo t ON f.mes_id = t.mes_id
+WHERE t.ano = 2024
+  AND f.valor_valido = 1
+LIMIT 200",1,1,55.33,5,7340,540,"**Resposta direta**   O volume financeiro total negociado em 2024 foi de **R$ 137.031.725.686,28**.  **Destaques**   - Valor supera a marca de R$ 100 bilhões, indicando alta movimentação no mercado.   - O total considera apenas transações válidas (valor_valido = 1).   - Não há comparativo temporal neste resultado, mas o número já demonstra um volume expressivo.  **Ressalvas**   - O cálculo inclui somente transações marcadas como válidas; transações sem validação foram excluídas.   - Valores são ",
+antes,F05,facil,dados,Qual o preço médio do metro quadrado em 2025?,dados,1,resultado confere,"SELECT ROUND(AVG(f.preco_m2), 2) AS preco_medio_m2
+FROM fato_transacoes f
+JOIN dim_tempo t ON f.mes_id = t.mes_id
+WHERE t.ano = 2025
+  AND f.natureza_id = 1
+  AND f.elegivel_m2 = 1
+LIMIT 200",1,1,41.81,4,5491,637,"**Resposta direta**   O preço médio do metro quadrado de imóveis residenciais vendidos inteiros em 2025 foi **R$ 5.435,71**.  **Destaques**   - Valor calculado com base em todas as transações elegíveis (elegível_m2 = 1).   - Média ponderada por transação, sem distinção de região ou tipo de imóvel.   - O resultado já está arredondado para duas casas decimais.  **Ressalvas**   - O cálculo considera apenas imóveis residenciais vendidos inteiros (natureza_id = 1).   - A métrica inclui somente áreas ",
+antes,F06,facil,dados,Quantos imóveis foram arrematados em leilão em 2024 e 2025 somados?,dados,0,linha esperada não encontrada: [3576.0],"SELECT COUNT(*) AS qtd_arremates
+FROM fato_transacoes f
+JOIN dim_tempo t ON f.mes_id = t.mes_id
+JOIN dim_natureza n ON f.natureza_id = n.natureza_id
+WHERE t.ano IN (2024, 2025)
+  AND n.descricao = 'LEILÃO'
+LIMIT 200",1,1,39.52,4,5572,788,"**Resposta direta**   Nenhum imóvel foi arrematado em leilão nos anos de 2024 e 2025 (0 arremates).  **Destaques**   - O total de arremates em leilão para o período analisado é zero.   - Não há variação ou tendência a observar, pois não há registros.   - Possível ausência de dados de leilões ou ainda não houve leilões concluídos nesses anos.  **Ressalvas**   - O resultado considera apenas transações cujo pagamento do ITBI foi registrado nos anos de 2024 ou 2025.   - A natureza “LEILÃO” está filt",
+antes,F07,facil,dados,Quanto foi financiado no total (crédito imobiliário) em 2025?,dados,1,resultado confere,"SELECT ROUND(SUM(f.valor_financiado), 2) AS total_financiado
+FROM fato_transacoes f
+JOIN dim_tempo t ON f.mes_id = t.mes_id
+WHERE t.ano = 2025
+  AND f.financiamento_id <> 0
+  AND f.valor_valido = 1
+LIMIT 200",1,1,55.87,5,7459,685,"**Resposta direta**   O total financiado em 2025 foi de **R$ 28.270.687.540,75**.  **Destaques**   - Valor acumulado acima de R$ 28 bi, indicando forte demanda por crédito imobiliário.   - O cálculo considerou apenas transações com financiamento registrado (`financiamento_id <> 0`) e valor válido.   - Não há comparação histórica neste resultado, mas o montante supera facilmente a marca de R$ 20 bi.  **Ressalvas**   - O total inclui apenas as transações presentes na base que têm `valor_valido = 1",
+antes,M01,medio,dados,Quantas vendas tivemos por zona no último trimestre?,dados,1,resultado confere,"SELECT l.zona,
+       COUNT(*) AS qtd_compras_vendas
+FROM fato_transacoes f
+JOIN dim_tempo t ON f.mes_id = t.mes_id
+JOIN dim_local l ON f.setor_fiscal = l.setor_fiscal
+WHERE t.ano = 2025
+  AND t.trimestre = 4
+  AND f.natureza_id = 1
+GROUP BY l.zona
+ORDER BY qtd_compras_vendas DESC
+LIMIT 200",1,1,47.95,4,5546,749,"**Resposta direta**   No 4º trimestre de 2025 foram registradas **19.390 vendas na zona Sul**, seguidas por Leste (12.375), Oeste (8.808), Norte (6.894) e Centro (6.765).  **Destaques**   - A zona Sul concentrou **≈ 39 %** das transações, quase o dobro da segunda maior (Leste).   - As três zonas sul‑leste (Sul, Leste, Oeste) somam **≈ 84 %** das vendas totais.   - Centro registra a menor quantidade, com **6.765 vendas**, cerca de **35 %** a menos que a zona Norte.  **Ressalvas**   - O cálculo co",
+antes,M02,medio,dados,Qual o preço médio do m² de apartamentos em Pinheiros em 2025?,dados,0,linha esperada não encontrada: [9233.85],"SELECT ROUND(AVG(f.preco_m2), 2) AS preco_medio_m2
+FROM fato_transacoes f
+JOIN dim_tempo t ON f.mes_id = t.mes_id
+JOIN dim_local l ON f.setor_fiscal = l.setor_fiscal
+JOIN dim_uso u ON f.uso_id = u.uso_id
+WHERE t.ano = 2025
+  AND l.bairro = 'PINHEIROS'
+  AND u.descricao = 'APARTAMENTO'
+  AND f.elegivel_m2 = 1
+  AND f.valor_valido = 1
+LIMIT 200",1,1,43.5,4,5735,830,"**Resposta direta**   Não há registros de preço por m² de apartamentos em Pinheiros para o ano de 2025 que atendam aos critérios de elegibilidade.  **Destaques**   - A consulta retornou **null**, indicando ausência de transações qualificadas.   - Pode ser que não existam vendas de apartamentos elegíveis em 2025 ou que os dados ainda não tenham sido carregados.   - O filtro de elegibilidade (`elegivel_m2 = 1` e `valor_valido = 1`) pode estar excluindo a maioria das transações.  **Ressalvas**   - ",
+antes,M03,medio,dados,Quais os 5 bairros com mais vendas em 2025?,dados,1,resultado confere,"SELECT l.bairro AS bairro, COUNT(*) AS qtd_vendas
+FROM fato_transacoes f
+JOIN dim_tempo t ON f.mes_id = t.mes_id
+JOIN dim_local l ON f.setor_fiscal = l.setor_fiscal
+WHERE t.ano = 2025 AND f.natureza_id = 1
+GROUP BY l.bairro
+ORDER BY qtd_vendas DESC
+LIMIT 5",1,1,41.83,4,5540,706,"**Resposta direta**   Os 5 bairros com mais vendas em 2025 foram: SANTO AMARO (8.550), BARRA FUNDA (7.534), VILA ANDRADE (7.501), PERDIZES (6.003) e VILA PRUDENTE (5.814).  **Destaques**   - SANTO AMARO lidera com 1.016 vendas a mais que o segundo colocado.   - BARRA FUNDA e VILA ANDRADE estão quase empatados, diferença de apenas 33 vendas.   - Os cinco bairros concentram a maior parte das transações, indicando foco de demanda nesses setores.  **Ressalvas**   - “Vendas” consideram apenas transaç",
+antes,M04,medio,dados,Mostre o volume financeiro mês a mês em 2025.,dados,0,"linha esperada não encontrada: [1.0, 9240553127.74]","SELECT t.mes_id,
+       ROUND(SUM(f.valor_transacao), 2) AS volume_financeiro
+FROM fato_transacoes f
+JOIN dim_tempo t ON f.mes_id = t.mes_id
+WHERE t.ano = 2025
+  AND f.valor_valido = 1
+GROUP BY t.mes_id
+ORDER BY t.mes_id
+LIMIT 200",1,1,53.89,5,7567,707,"**Resposta direta**   O volume financeiro total em 2025 foi de **R$ 150,5 bi**, com o maior mês em dezembro (R$ 15,84 bi) e o menor em janeiro (R$ 9,24 bi).  **Destaques**   - Crescimento consistente ao longo do ano, passando de R$ 9,24 bi em jan/25 para R$ 15,84 bi em dez/25 (+ 71,3%).   - O pico de volume ocorreu em outubro (R$ 13,90 bi) e manteve‑se acima de R$ 12 bi a partir de maio.   - Apenas dois meses (jan/25 e mar/25) ficaram abaixo de R$ 10 bi.  **Ressalvas**   - O volume considera tod",
+antes,M05,medio,dados,Qual o percentual das vendas de 2025 que foram financiadas pelo Minha Casa Minha Vida?,dados,0,linha esperada não encontrada: [14.3],"SELECT ROUND(100.0 * SUM(CASE WHEN fi.descricao = 'MINHA CASA MINHA VIDA' THEN 1 ELSE 0 END) / COUNT(*), 1) AS pct_financiado_mcmv
+FROM fato_transacoes f
+JOIN dim_tempo t ON f.mes_id = t.mes_id
+JOIN dim_financiamento fi ON f.financiamento_id = fi.financiamento_id
+WHERE t.ano = 2025
+  AND f.natureza_id = 1
+LIMIT 200",1,1,44.3,4,5681,951,"**Resposta direta**   Em 2025, **0,0 %** das vendas foram financiadas pelo programa Minha Casa Minha Vida.  **Destaques**   - Nenhuma transação de compra e venda (natureza_id = 1) registrou o financiamento “MINHA CASA MINHA VIDA”.   - O percentual é zero mesmo considerando todas as vendas do ano, indicando ausência total desse tipo de financiamento.   - Como o cálculo usa a contagem total de vendas, o valor reflete a proporção exata da base analisada.  **Ressalvas**   - O percentual considera ap",
+antes,M06,medio,dados,Compare o valor médio de venda de casas e de apartamentos em 2024.,dados,0,"nº de linhas diferente (esperado 2, obtido 0)","SELECT u.descricao AS uso, ROUND(AVG(f.valor_transacao), 2) AS valor_medio
+FROM fato_transacoes f
+JOIN dim_tempo t ON f.mes_id = t.mes_id
+JOIN dim_uso u ON f.uso_id = u.uso_id
+WHERE t.ano = 2024
+  AND f.natureza_id = 1
+  AND f.valor_valido = 1
+  AND u.descricao IN ('CASA', 'APARTAMENTO')
+GROUP BY u.descricao
+LIMIT 200",1,1,44.28,4,5591,801,"**Resposta direta**   Não há registros de transações de casas ou apartamentos em 2024 que atendam aos filtros aplicados.  **Destaques**   - O conjunto de dados retornou zero linhas, portanto não é possível calcular o valor médio de venda.   - Pode ser que ainda não existam transações registradas para 2024 ou que os filtros (ex.: `natureza_id = 1`, `valor_valido = 1`) estejam excluindo os registros.    **Ressalvas**   - O resultado está vazio; os números apresentados são inexistentes.   - Verifiq",
+antes,M07,medio,dados,Quantas vagas de garagem foram negociadas no primeiro semestre de 2025?,fora_escopo,0,classificou como 'fora_escopo',,0,,19.69,2,2647,257,"Desculpe, não disponho de informações sobre vagas de garagem negociadas, pois a base de dados contém apenas detalhes das transações imobiliárias pagas de ITBI (valor, área, financiamento, etc.). Posso ajudar com métricas como quantidade de transações, volume financeiro, preço médio por m², entre outras disponíveis.",
+antes,D01,dificil,dados,Quais os 5 bairros que mais valorizaram em % no preço do m² de 2024 para 2025?,dados,1,resultado confere,"SELECT
+    avg_2025.bairro,
+    ROUND(avg_2025.preco_medio_m2, 2) AS preco_medio_2025,
+    ROUND(avg_2024.preco_medio_m2, 2) AS preco_medio_2024,
+    ROUND(100.0 * (avg_2025.preco_medio_m2 - avg_2024.preco_medio_m2) / avg_2024.preco_medio_m2, 1) AS variacao_pct
+FROM (
+    SELECT l.bairro, AVG(f.preco_m2) AS preco_medio_m2, COUNT(*) AS cnt
+    FROM fato_transacoes f
+    JOIN dim_tempo t ON f.mes_id = t.mes_id
+    JOIN dim_local l ON f.setor_fiscal = l.setor_fiscal
+    WHERE t.ano = 2025
+      AND f.natureza_id = 1
+      AND f.elegivel_m2 = 1
+    GROUP BY l.bairro
+    HAVING COUNT(*) >= 100
+) avg_2025
+JOIN (
+    SELECT l.bairro, AVG(f.preco_m2) AS preco_medio_m2, COUNT(*) AS cnt
+    FROM fato_transacoes f
+    JOIN dim_tempo t ON f.mes_id = t.mes_id
+    JOIN dim_local l ON f.setor_fiscal = l.setor_fiscal
+    WHERE t.ano = 2024
+      AND f.natureza_id = 1
+      AND f.elegivel_m2 = 1
+    GROUP BY l.bairro
+    HAVING COUNT(*) >= 100
+) avg_2024 ON avg_2025.bairro = avg_2024.bairro
+ORDER BY variacao_pct DESC
+LIMIT 5",2,0,64.69,5,9655,1735,"**Resposta direta**   Os 5 bairros que mais valorizaram de 2024 para 2025 foram:    - Jardim Belaura (+47,7 %);   - Itaim Bibi (+22,5 %);   - Santa Etelvina IIA (+21,0 %);   - Jardim América (+14,7 %);   - Sítio Pedra Branca (+13,7 %).  **Destaques**   - Jardim Belaura lidera a lista, quase 48 % de alta, passando de R$ 2.785,24/m² para R$ 4.114,60/m².   - Os quatro demais bairros tiveram valorização acima de 13 %, indicando tendência de alta consistente em áreas de classe média/alta.   - Todos o",
+antes,D02,dificil,dados,Qual foi o crescimento percentual do volume financeiro de cada zona entre 2024 e 2025?,dados,1,resultado confere,"SELECT l.zona,
+       ROUND(SUM(CASE WHEN t.ano = 2024 THEN f.valor_transacao END), 2) AS volume_2024,
+       ROUND(SUM(CASE WHEN t.ano = 2025 THEN f.valor_transacao END), 2) AS volume_2025,
+       ROUND(100.0 * (SUM(CASE WHEN t.ano = 2025 THEN f.valor_transacao END) - SUM(CASE WHEN t.ano = 2024 THEN f.valor_transacao END)) / NULLIF(SUM(CASE WHEN t.ano = 2024 THEN f.valor_transacao END),0), 1) AS variacao_pct
+FROM fato_transacoes f
+JOIN dim_tempo t ON f.mes_id = t.mes_id
+JOIN dim_local l ON f.setor_fiscal = l.setor_fiscal
+WHERE f.valor_valido = 1
+GROUP BY l.zona
+ORDER BY l.zona
+LIMIT 200",1,1,40.95,4,5922,1022,"**Resposta direta**   O volume financeiro cresceu de 5,0 % a 17,9 % nas zonas, passando de R$ 12,07 bi a R$ 58,40 bi em 2025.  **Destaques**   - Oeste teve o maior aumento percentual (17,9 %) e o maior salto absoluto, de R$ 27,66 bi para R$ 32,62 bi.   - Leste também apresentou forte crescimento (14,0 %) com volume de R$ 21,22 bi para R$ 24,19 bi.   - Sul praticamente estagnou, com variação de apenas 0,2 % (R$ 58,25 bi → R$ 58,40 bi).  **Ressalvas**   - O cálculo inclui todas as naturezas de tra",
+antes,D03,dificil,dados,Em quais meses de 2025 o número de vendas foi maior que no mesmo mês de 2024?,dados,0,"linha esperada não encontrada: [1.0, 10675.0, 13284.0]","SELECT t2025.mes_id,
+       t2025.nome_mes,
+       t2025.qtd_2025,
+       t2024.qtd_2024
+FROM (
+    SELECT f.mes_id, t.nome_mes, COUNT(*) AS qtd_2025
+    FROM fato_transacoes f
+    JOIN dim_tempo t ON f.mes_id = t.mes_id
+    WHERE t.ano = 2025 AND f.natureza_id = 1
+    GROUP BY f.mes_id, t.nome_mes
+) t2025
+JOIN (
+    SELECT f.mes_id, COUNT(*) AS qtd_2024
+    FROM fato_transacoes f
+    JOIN dim_tempo t ON f.mes_id = t.mes_id
+    WHERE t.ano = 2024 AND f.natureza_id = 1
+    GROUP BY f.mes_id
+) t2024 ON substr(t2025.mes_id,5,2) = substr(t2024.mes_id,5,2)
+WHERE t2025.qtd_2025 > t2024.qtd_2024
+ORDER BY t2025.mes_id
+LIMIT 200",2,0,56.1,5,8611,1210,"**Resposta direta**   Em 2025, o número de vendas foi maior que no mesmo mês de 2024 em 9 dos 12 meses analisados, totalizando 132 84 a 19 518 vendas por mês, sempre acima das 10 675 a 18 654 vendas de 2024.  **Destaques**   - O maior aumento relativo ocorreu em **Outubro**, com 1 881 vendas a mais que em 2024 (18 912 vs 18 731).   - Todos os meses com aumento apresentaram crescimento de pelo menos **2 000** vendas, exceto **Abril** (48 a mais).   - O mês com maior volume absoluto foi **Dezembro",
+antes,D04,dificil,dados,"Entre os 10 bairros com maior volume financeiro em 2025, qual tem o maior percentual de vendas financiadas?",dados,1,resultado confere,"SELECT top.bairro,
+       top.volume_financeiro,
+       ROUND(top.pct_financiadas, 1) AS pct_financiadas
+FROM (
+    SELECT l.bairro AS bairro,
+           SUM(f.valor_transacao) AS volume_financeiro,
+           100.0 * SUM(CASE WHEN fi.financiado = 1 THEN 1 ELSE 0 END) / COUNT(*) AS pct_financiadas,
+           COUNT(*) AS cnt
+    FROM fato_transacoes f
+    JOIN dim_tempo t ON f.mes_id = t.mes_id
+    JOIN dim_local l ON f.setor_fiscal = l.setor_fiscal
+    JOIN dim_natureza n ON f.natureza_id = n.natureza_id
+    JOIN dim_financiamento fi ON f.financiamento_id = fi.financiamento_id
+    WHERE t.ano = 2025
+      AND f.natureza_id = 1
+      AND f.valor_valido = 1
+    GROUP BY l.bairro
+    HAVING COUNT(*) >= 1
+    ORDER BY volume_financeiro DESC
+    LIMIT 10
+) top
+ORDER BY top.pct_financiadas DESC
+LIMIT 1",1,1,47.26,4,6147,1095,"**Resposta direta**   O bairro **BARRA FUNDA** concentra o maior percentual de vendas financiadas entre os 10 bairros com maior volume financeiro em 2025, com **72,0 %** das transações financiadas (volume financeiro de R$ 3.825.103.015,42).  **Destaques**   - BARRA FUNDA lidera tanto em volume financeiro quanto em percentual de financiamentos dentro do top‑10.   - O percentual de 72 % indica que quase três quartos das vendas nesse bairro foram realizadas com financiamento.   - O volume financeir",
+antes,A01,armadilha,fora_escopo,Qual vai ser o preço do m² em Moema em 2027?,fora_escopo,1,recusou/pediu esclarecimento,,0,,5.45,1,661,123,"Desculpe, mas não possuo dados sobre preços do m² para o ano de 2027. Posso ajudar com informações de transações realizadas entre janeiro de 2024 e dezembro de 2025.",
+antes,A02,armadilha,ambigua,Quais são os melhores bairros?,ambigua,1,recusou/pediu esclarecimento,,0,,2.41,1,652,168,"Para identificar os ""melhores bairros"", preciso saber qual critério você deseja usar. Por favor, escolha uma das opções abaixo: 1. Maior volume de transações (valor total das vendas). 2. Maior número de transações realizadas. 3. Maior preço médio por m². 4. Maior ticket médio (valor médio por transação).",
+depois,F01,facil,dados,Quantas transações com ITBI pago tivemos em 2024?,dados,1,resultado confere,"SELECT COUNT(*) AS qtd_transacoes
+FROM fato_transacoes f
+JOIN dim_tempo t ON f.mes_id = t.mes_id
+WHERE t.ano = 2024
+LIMIT 200",1,1,4.3,4,6405,578,"**Resposta direta**   Foram registradas **217.079** transações com ITBI pago em 2024.  **Destaques**   - O total supera 200 mil, indicando alta atividade no mercado naquele ano.   - Como não houve filtro por natureza da transação, o número inclui vendas, transferências e outras modalidades.   - O volume pode ser comparado com anos anteriores para avaliar tendência de crescimento ou queda.  **Ressalvas**   - O cálculo considera todas as naturezas de transação (não há filtro por `natureza_id`).   ",
+depois,F02,facil,dados,Quantos imóveis foram vendidos em 2025?,dados,1,resultado confere,"SELECT COUNT(*) AS qtd_compras_vendas
+FROM fato_transacoes f
+JOIN dim_tempo t ON f.mes_id = t.mes_id
+WHERE t.ano = 2025 AND f.natureza_id = 1
+LIMIT 200",1,1,44.73,4,6423,643,"**Resposta direta**   Foram vendidas **205.488** unidades imobiliárias em 2025.  **Destaques**   - O volume de transações supera 200 mil, indicando alta atividade no mercado.   - Como a contagem considera apenas a natureza “compra e venda”, o número reflete exclusivamente negócios concluídos.   - O total foi obtido a partir de um único ano calendário, sem segmentação por região ou tipo de imóvel.  **Ressalvas**   - O critério “imóveis vendidos” inclui apenas transações com `natureza_id = 1` (com",
+depois,F03,facil,dados,Qual foi o valor médio das transações em 2025?,dados,1,resultado confere,"SELECT ROUND(AVG(f.valor_transacao), 2) AS valor_medio
+FROM fato_transacoes f
+JOIN dim_tempo t ON f.mes_id = t.mes_id
+WHERE t.ano = 2025 AND f.valor_valido = 1
+LIMIT 200",1,1,52.82,4,6434,609,"**Resposta direta**   O valor médio das transações em 2025 foi de **R$ 651.255,61**.  **Destaques**   - Valor médio acima de meio milhão de reais, indicando transações de porte considerável.   - Métrica calculada apenas com transações marcadas como válidas (`valor_valido = 1`).   - Não há comparação direta com anos anteriores no resultado apresentado.  **Ressalvas**   - O cálculo inclui todas as naturezas de transação, conforme a suposição.   - O valor médio está arredondado para duas casas deci",
+depois,F04,facil,dados,Qual foi o volume financeiro total negociado em 2024?,dados,1,resultado confere,"SELECT ROUND(SUM(f.valor_transacao), 2) AS volume_financeiro_total
+FROM fato_transacoes f
+JOIN dim_tempo t ON f.mes_id = t.mes_id
+WHERE t.ano = 2024
+  AND f.valor_valido = 1
+LIMIT 200",1,1,44.29,4,6434,596,"**Resposta direta**   O volume financeiro total negociado em 2024 foi de **R$ 137.031.725.686,28**.  **Destaques**   - Valor supera R$ 137 bi, indicando alta movimentação no mercado.   - O cálculo inclui todas as naturezas de transação e apenas registros marcados como válidos.   - O total refere‑se ao mês de pagamento do ITBI, conforme a dimensão de tempo.  **Ressalvas**   - O valor considera todas as naturezas de transação (não restrito a compra e venda).   - Apenas transações com `valor_valido",
+depois,F05,facil,dados,Qual o preço médio do metro quadrado em 2025?,dados,1,resultado confere,"SELECT ROUND(AVG(f.preco_m2), 2) AS preco_medio_m2
+FROM fato_transacoes f
+JOIN dim_tempo t ON f.mes_id = t.mes_id
+JOIN dim_uso u ON f.uso_id = u.uso_id
+WHERE t.ano = 2025
+  AND f.elegivel_m2 = 1
+  AND f.valor_valido = 1
+  AND (u.categoria = 'Residencial vertical (apartamento/flat)' OR u.categoria = 'Residencial horizontal (casa)')
+LIMIT 200",1,1,55.76,4,6893,730,"**Resposta direta**   O preço médio do metro quadrado em 2025 foi de **R$ 5.435,71**.  **Destaques**   - Valor calculado apenas para imóveis residenciais (vertical e horizontal) vendidos inteiros.   - Média ponderada por transações elegíveis (elegível_m2 = 1) e com valor válido.   - O resultado já está arredondado para duas casas decimais.  **Ressalvas**   - O cálculo considera somente imóveis residenciais vendidos inteiros; imóveis comerciais ou parcelas não foram incluídos.   - A métrica refle",
+depois,F06,facil,dados,Quantos imóveis foram arrematados em leilão em 2024 e 2025 somados?,dados,1,resultado confere,"SELECT COUNT(*) AS qtd_imoveis_arrematados
+FROM fato_transacoes f
+JOIN dim_tempo t ON f.mes_id = t.mes_id
+WHERE t.ano IN (2024, 2025) AND f.natureza_id = 4
+LIMIT 200",1,1,46.83,4,6643,707,"**Resposta direta**   Foram arrematados **3.576 imóveis** em leilão nos anos de 2024 e 2025 combinados.    **Destaques**   - O total já inclui todas as transações pagas no ITBI, independentemente do uso ou financiamento.   - Não há divisão por ano no resultado, portanto não é possível identificar qual ano teve maior volume.   - O número representa apenas imóveis com natureza_id = 4 (leilão) conforme a definição adotada.    **Ressalvas**   - O cálculo considera apenas registros com natureza_id = ",
+depois,F07,facil,dados,Quanto foi financiado no total (crédito imobiliário) em 2025?,dados,1,resultado confere,"SELECT ROUND(SUM(f.valor_financiado), 2) AS total_financiado
+FROM fato_transacoes f
+JOIN dim_tempo t ON f.mes_id = t.mes_id
+WHERE t.ano = 2025
+  AND f.financiamento_id <> 0
+  AND f.valor_valido = 1
+LIMIT 200",1,1,69.95,5,9053,662,"**Resposta direta**   O total financiado em 2025 foi de **R$ 28.270.687.540,75**.  **Destaques**   - Valor acumulado acima de R$ 28 bilhões, indicando forte atividade de crédito imobiliário.   - A soma considera apenas transações com financiamento (financiamento_id <> 0) e valor válido.   - Não há comparação histórica aqui, mas o montante supera facilmente a marca de R$ 20 bilhões.  **Ressalvas**   - O cálculo inclui somente as transações cujo ITBI foi pago em 2025 e que foram marcadas como “val",
+depois,M01,medio,dados,Quantas vendas tivemos por zona no último trimestre?,dados,1,resultado confere,"SELECT l.zona,
+       COUNT(*) AS qtd_vendas
+FROM fato_transacoes f
+JOIN dim_tempo t ON f.mes_id = t.mes_id
+JOIN dim_local l ON f.setor_fiscal = l.setor_fiscal
+WHERE t.ano = 2025
+  AND t.trimestre = 4
+  AND f.natureza_id = 1
+GROUP BY l.zona
+ORDER BY l.zona
+LIMIT 200",1,1,50.84,4,6617,714,"**Resposta direta**   No 4º trimestre de 2025 foram registradas **19.390 vendas no Sul**, seguidas por **12.375 no Leste**, **8.808 no Oeste**, **6.894 no Norte** e **6.765 no Centro**.  **Destaques**   - O Sul concentrou **≈ 31 %** das vendas totais do trimestre.   - O Leste teve quase o dobro de vendas que o Centro (12.375 vs 6.765).   - As zonas Norte e Centro apresentaram volumes semelhantes, ficando abaixo de 7 mil vendas cada.  **Ressalvas**   - A contagem considera todas as transações com",
+depois,M02,medio,dados,Qual o preço médio do m² de apartamentos em Pinheiros em 2025?,dados,1,resultado confere,"SELECT ROUND(AVG(f.preco_m2), 2) AS preco_medio_m2
+FROM fato_transacoes f
+JOIN dim_tempo t ON f.mes_id = t.mes_id
+JOIN dim_local l ON f.setor_fiscal = l.setor_fiscal
+JOIN dim_uso u ON f.uso_id = u.uso_id
+WHERE t.ano = 2025
+  AND l.bairro = 'PINHEIROS'
+  AND u.categoria = 'Residencial vertical (apartamento/flat)'
+  AND f.elegivel_m2 = 1
+  AND f.valor_valido = 1
+LIMIT 200",1,1,47.66,4,6790,755,"**Resposta direta**   O preço médio do m² de apartamentos em Pinheiros em 2025 foi de **R$ 9.233,85**.  **Destaques**   - Valor calculado apenas com transações elegíveis (elegível_m2 = 1) e consideradas válidas (valor_valido = 1).   - Média baseada em imóveis residenciais verticais (apartamento/flat) conforme a categoria especificada.   - O resultado reflete o cenário de 2025, sem comparativo histórico neste conjunto.  **Ressalvas**   - O preço médio inclui somente imóveis que atendem aos filtro",
+depois,M03,medio,dados,Quais os 5 bairros com mais vendas em 2025?,dados,1,resultado confere,"SELECT l.bairro AS bairro, COUNT(*) AS qtd_vendas
+FROM fato_transacoes f
+JOIN dim_tempo t ON f.mes_id = t.mes_id
+JOIN dim_local l ON f.setor_fiscal = l.setor_fiscal
+WHERE t.ano = 2025 AND f.natureza_id = 1
+GROUP BY l.bairro
+ORDER BY qtd_vendas DESC
+LIMIT 5",1,1,48.39,4,6641,737,"**Resposta direta**   Os 5 bairros com mais vendas em 2025 foram: Santo Amaro (8.550), Barra Funda (7.534), Vila Andrade (7.501), Perdizes (6.003) e Vila Prudente (5.814).  **Destaques**   - Santo Amaro lidera com 1,1 mil vendas a mais que o segundo colocado.   - Barra Funda e Vila Andrade estão quase empatados, com diferença de apenas 33 vendas.   - Os cinco bairros concentram mais de 35 mil transações, representando a maior parte das vendas do ano.  **Ressalvas**   - O número de vendas conside",
+depois,M04,medio,dados,Mostre o volume financeiro mês a mês em 2025.,dados,1,resultado confere,"SELECT t.mes AS mes_num, t.nome_mes, ROUND(SUM(f.valor_transacao), 2) AS volume_financeiro
+FROM fato_transacoes f
+JOIN dim_tempo t ON f.mes_id = t.mes_id
+WHERE t.ano = 2025 AND f.valor_valido = 1
+GROUP BY t.mes, t.nome_mes
+ORDER BY t.mes
+LIMIT 200",1,1,50.54,4,6679,712,"**Resposta direta**   O volume financeiro total em 2025 foi de **R$ 150,5 bi**, com destaque para dezembro, que atingiu **R$ 15,84 bi**.  **Destaques**   - O maior mês foi **dezembro (R$ 15,84 bi)**, 13,3 % acima de outubro, o segundo maior.   - O menor mês foi **janeiro (R$ 9,24 bi)**, representando 38,5 % do pico de dezembro.   - Houve crescimento consistente de junho a outubro, com o volume superando **R$ 12 bi** a partir de junho.  **Ressalvas**   - O cálculo inclui todas as naturezas de tra",
+depois,M05,medio,dados,Qual o percentual das vendas de 2025 que foram financiadas pelo Minha Casa Minha Vida?,dados,1,resultado confere,"SELECT ROUND(100.0 * SUM(CASE WHEN f.financiamento_id = 2 THEN 1 ELSE 0 END) / COUNT(*), 1) AS pct_mcmv
+FROM fato_transacoes f
+JOIN dim_tempo t ON f.mes_id = t.mes_id
+WHERE t.ano = 2025 AND f.natureza_id = 1
+LIMIT 200",1,1,45.54,4,6755,940,"**Resposta direta**   14,3 % das transações de compra e venda realizadas em 2025 foram financiadas pelo programa Minha Casa Minha Vida.  **Destaques**   - Aproximadamente 1 em cada 7 vendas utilizou esse financiamento.   - O percentual indica que a maior parte das vendas (85,7 %) foi feita por outros meios de pagamento.   - O valor reflete apenas as transações com natureza de compra/venda (natureza_id = 1) no ano de 2025.  **Ressalvas**   - O cálculo considera somente as transações de compra e v",
+depois,M06,medio,dados,Compare o valor médio de venda de casas e de apartamentos em 2024.,dados,1,resultado confere,"SELECT 
+  CASE 
+    WHEN u.categoria = 'Residencial horizontal (casa)' THEN 'Casa'
+    WHEN u.categoria = 'Residencial vertical (apartamento/flat)' THEN 'Apartamento'
+  END AS tipo_imovel,
+  ROUND(AVG(f.valor_transacao), 2) AS valor_medio_venda
+FROM fato_transacoes f
+JOIN dim_tempo t ON f.mes_id = t.mes_id
+JOIN dim_uso u ON f.uso_id = u.uso_id
+WHERE t.ano = 2024
+  AND f.natureza_id = 1
+  AND f.valor_valido = 1
+  AND u.categoria IN (
+    'Residencial horizontal (casa)',
+    'Residencial vertical (apartamento/flat)'
+  )
+GROUP BY tipo_imovel
+LIMIT 200",1,1,62.63,5,9345,930,"**Resposta direta**   O valor médio de venda em 2024 foi de **R$ 718.560,99** para apartamentos e **R$ 629.798,36** para casas.  **Destaques**   - Apartamentos têm ticket médio **13,9 %** maior que o das casas.   - Ambos os tipos apresentam valores acima de R$ 600 mil, indicando um mercado de alto padrão.   - A diferença absoluta entre os dois tipos é de **R$ 88.762,63**.  **Ressalvas**   - O cálculo considera apenas transações de compra e venda (natureza padrão) com valor válido.   - As categor",
+depois,M07,medio,dados,Quantas vagas de garagem foram negociadas no primeiro semestre de 2025?,dados,1,resultado confere,"SELECT COUNT(*) AS qtd_transacoes
+FROM fato_transacoes f
+JOIN dim_tempo t ON f.mes_id = t.mes_id
+JOIN dim_uso u ON f.uso_id = u.uso_id
+WHERE t.ano = 2025 AND t.semestre = 1 AND u.categoria = 'Garagem'
+LIMIT 200",1,1,50.52,4,6554,664,"**Resposta direta**   Foram negociadas **6.256 vagas de garagem** no primeiro semestre de 2025.  **Destaques**   - O volume de vagas negociadas supera 6 mil unidades, indicando alta demanda por estacionamento.   - Como a consulta inclui todas as naturezas de transação, esse número engloba tanto vendas quanto locações e outras modalidades.   - O resultado foi obtido usando o mês de pagamento do ITBI como referência temporal, garantindo consistência nas datas.  **Ressalvas**   - O total considera ",
+depois,D01,dificil,dados,Quais os 5 bairros que mais valorizaram em % no preço do m² de 2024 para 2025?,dados,1,resultado confere,"SELECT avg2024.bairro,
+       ROUND(avg2025.preco_medio_m2, 2) AS preco_medio_2025,
+       ROUND(avg2024.preco_medio_m2, 2) AS preco_medio_2024,
+       ROUND(100.0 * (avg2025.preco_medio_m2 - avg2024.preco_medio_m2) / avg2024.preco_medio_m2, 1) AS variacao_pct
+FROM (
+    SELECT l.bairro,
+           AVG(f.preco_m2) AS preco_medio_m2,
+           COUNT(*) AS cnt
+    FROM fato_transacoes f
+    JOIN dim_tempo t ON f.mes_id = t.mes_id
+    JOIN dim_local l ON f.setor_fiscal = l.setor_fiscal
+    WHERE t.ano = 2024
+      AND f.elegivel_m2 = 1
+      AND f.valor_valido = 1
+      AND f.natureza_id = 1
+    GROUP BY l.bairro
+    HAVING COUNT(*) >= 100
+) avg2024
+JOIN (
+    SELECT l.bairro,
+           AVG(f.preco_m2) AS preco_medio_m2,
+           COUNT(*) AS cnt
+    FROM fato_transacoes f
+    JOIN dim_tempo t ON f.mes_id = t.mes_id
+    JOIN dim_local l ON f.setor_fiscal = l.setor_fiscal
+    WHERE t.ano = 2025
+      AND f.elegivel_m2 = 1
+      AND f.valor_valido = 1
+      AND f.natureza_id = 1
+    GROUP BY l.bairro
+    HAVING COUNT(*) >= 100
+) avg2025 ON avg2024.bairro = avg2025.bairro
+ORDER BY variacao_pct DESC
+LIMIT 5",2,0,78.11,5,11328,1976,"**Resposta direta**   Os 5 bairros que mais valorizaram de 2024 para 2025 foram:    - **JARDIM BELAURA** – preço médio m² subiu 47,7 % (de R$ 2.785,24 para R$ 4.114,60).   - **ITAIM BIBI** – alta de 22,5 % (de R$ 10.872,02 para R$ 13.322,97).   - **SANTA ETELVINA IIA** – alta de 21,0 % (de R$ 1.933,52 para R$ 2.338,69).   - **JARDIM AMÉRICA** – alta de 14,7 % (de R$ 7.597,50 para R$ 8.712,79).   - **SÍTIO PEDRA BRANCA** – alta de 13,7 % (de R$ 3.341,34 para R$ 3.799,17).  **Destaques**   - O Jar",
+depois,D02,dificil,dados,Qual foi o crescimento percentual do volume financeiro de cada zona entre 2024 e 2025?,dados,0,"linha esperada não encontrada: ['oeste', 27660242799.77, 32623934249.78, 17.9]","SELECT l.zona,
+       ROUND(100.0 * (SUM(CASE WHEN t.ano = 2025 THEN f.valor_transacao END) - SUM(CASE WHEN t.ano = 2024 THEN f.valor_transacao END)) / NULLIF(SUM(CASE WHEN t.ano = 2024 THEN f.valor_transacao END),0), 1) AS variacao_pct
+FROM fato_transacoes f
+JOIN dim_tempo t ON f.mes_id = t.mes_id
+JOIN dim_local l ON f.setor_fiscal = l.setor_fiscal
+WHERE f.valor_valido = 1 AND t.ano IN (2024,2025)
+GROUP BY l.zona
+ORDER BY l.zona
+LIMIT 200",1,1,61.29,4,6864,1008,"**Resposta direta**   O volume financeiro cresceu entre 2024 e 2025 em:  - Oeste: **+17,9 %**   - Leste: **+14,0 %**   - Centro: **+5,8 %**   - Norte: **+5,0 %**   - Sul: **+0,2 %**  **Destaques**   - O Oeste apresentou o maior aumento (17,9 %), seguido de perto pelo Leste (14,0 %).   - As zonas Centro e Norte tiveram crescimento semelhante, pouco acima de 5 %.   - O Sul praticamente manteve o volume estável, com alta de apenas 0,2 %.  **Ressalvas**   - O cálculo considera o volume financeiro to",
+depois,D03,dificil,dados,Em quais meses de 2025 o número de vendas foi maior que no mesmo mês de 2024?,dados,1,resultado confere,"SELECT t.mes AS mes_num,
+       SUM(CASE WHEN t.ano = 2025 THEN 1 ELSE 0 END) AS qtd_2025,
+       SUM(CASE WHEN t.ano = 2024 THEN 1 ELSE 0 END) AS qtd_2024
+FROM fato_transacoes f
+JOIN dim_tempo t ON f.mes_id = t.mes_id
+WHERE f.natureza_id = 1 AND t.ano IN (2024, 2025)
+GROUP BY t.mes
+HAVING SUM(CASE WHEN t.ano = 2025 THEN 1 ELSE 0 END) > SUM(CASE WHEN t.ano = 2024 THEN 1 ELSE 0 END)
+ORDER BY t.mes
+LIMIT 200",1,1,41.49,4,6783,915,"**Resposta direta**   Em 2025, o número de vendas foi maior que em 2024 nos meses: 1 (13.284 vs 10.675), 2 (14.872 vs 11.956), 4 (18.134 vs 18.086), 5 (18.331 vs 17.203), 6 (17.533 vs 16.767), 8 (18.747 vs 17.879), 9 (18.134 vs 17.248), 10 (18.912 vs 18.731) e 12 (19.518 vs 17.654).  **Destaques**   - O maior aumento absoluto ocorreu em janeiro (+2.609 vendas).   - Em abril a diferença foi mínima (+48 vendas), indicando estabilidade entre os anos.   - Dezembro apresentou o maior volume total, co",
+depois,D04,dificil,dados,"Entre os 10 bairros com maior volume financeiro em 2025, qual tem o maior percentual de vendas financiadas?",dados,0,"nº de linhas diferente (esperado 1, obtido 10)","SELECT l.bairro,
+       ROUND(SUM(f.valor_transacao), 2) AS volume_financeiro,
+       ROUND(100.0 * SUM(CASE WHEN fi.financiado = 1 THEN 1 ELSE 0 END) / COUNT(*), 1) AS pct_financiadas
+FROM fato_transacoes f
+JOIN dim_tempo t ON f.mes_id = t.mes_id
+JOIN dim_local l ON f.setor_fiscal = l.setor_fiscal
+JOIN dim_financiamento fi ON f.financiamento_id = fi.financiamento_id
+WHERE t.ano = 2025
+  AND f.valor_valido = 1
+  AND f.natureza_id = 1
+GROUP BY l.bairro
+ORDER BY volume_financeiro DESC
+LIMIT 10",1,1,52.84,4,7270,1117,"**Resposta direta**   Entre os 10 bairros com maior volume financeiro em 2025, o **BARRA FUNDA** tem o maior percentual de vendas financiadas, com **72,0 %** das transações.  **Destaques**   - O bairro com maior volume financeiro é o **PINHEIROS** (R$ 9.247.125.203,37), mas seu percentual de financiadas é de apenas **18,9 %**.   - O segundo maior percentual de financiadas está em **SANTO AMARO** (66,6 %) – ainda bem abaixo de Barra Funda.   - Os bairros com volume acima de R$ 4 bi (PINHEIROS, SA",
+depois,A01,armadilha,fora_escopo,Qual vai ser o preço do m² em Moema em 2027?,fora_escopo,1,recusou/pediu esclarecimento,,0,,2.35,1,661,121,"Desculpe, não posso responder a essa pergunta. O sistema fornece dados de transações com ITBI pago em São Paulo apenas para o período de janeiro de 2024 a dezembro de 2025.",
+depois,A02,armadilha,ambigua,Quais são os melhores bairros?,ambigua,1,recusou/pediu esclarecimento,,0,,6.19,1,652,168,"Para identificar os ""melhores bairros"", preciso saber qual critério você deseja usar. Por favor, escolha uma das opções abaixo: 1. Maior volume de transações (valor total das vendas). 2. Maior número de transações realizadas. 3. Maior preço médio por m². 4. Maior ticket médio (valor médio da transação).",

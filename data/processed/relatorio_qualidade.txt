@@ -1,0 +1,71 @@
+Lendo GUIAS-DE-ITBI-PAGAS-2024.xlsx ...
+   JAN-2024:  12152 linhas
+   FEV-2024:  13246 linhas
+   MAR-2024:  16053 linhas
+   ABR-2024:  19688 linhas
+   MAI-2024:  18848 linhas
+   JUN-2024:  18586 linhas
+   JUL-2024:  20387 linhas
+   AGO-2024:  19810 linhas
+   SET-2024:  19682 linhas
+   OUT-2024:  21030 linhas
+   NOV-2024:  17866 linhas
+   DEZ-2024:  20398 linhas
+Lendo GUIAS_DE_ITBI_PAGAS__28012026__XLS.xlsx ...
+   JAN-2025:  14456 linhas
+   FEV-2025:  16649 linhas
+   MAR-2025:  15403 linhas
+   ABR-2025:  20008 linhas
+   MAI-2025:  19942 linhas
+   JUN-2025:  19315 linhas
+   JUL-2025:  20105 linhas
+   AGO-2025:  20484 linhas
+   SET-2025:  20529 linhas
+   OUT-2025:  21182 linhas
+   NOV-2025:  18775 linhas
+   DEZ-2025:  23677 linhas
+Total bruto: 448271 linhas
+[limpeza] linhas desalinhadas/cabeçalho repetido removidas: 10
+[limpeza] duplicatas exatas removidas: 1345
+[limpeza] valor_financiado negativo -> NULL/0: 5
+[limpeza] ano de construção fora de 1800-2026 -> NULL: 3
+[limpeza] transações com valor < R$ 10 mil (valor_valido=0): 7856
+[limpeza] transações elegíveis para preço do m²: 164481
+[limpeza] linhas finais: 446916 (de 448271)
+Banco gravado em data/processed/itbi.db
+
+=== TESTES DE QUALIDADE ===
+[OK ] fato com >= 5.000 linhas  (valor: 446916)
+[OK ] fato com >= 8 colunas  (valor: 26)
+[OK ] sem nulos em fato.mes_id  (valor: 0)
+[OK ] sem nulos em fato.setor_fiscal  (valor: 0)
+[OK ] sem nulos em fato.natureza_id  (valor: 0)
+[OK ] sem nulos em fato.uso_id  (valor: 0)
+[OK ] sem nulos em fato.padrao_id  (valor: 0)
+[OK ] sem nulos em fato.valor_transacao  (valor: 0)
+[OK ] transacao_id único  (valor: 0)
+[OK ] dim_tempo.mes_id único  (valor: 0)
+[OK ] dim_local.setor_fiscal único  (valor: 0)
+[OK ] dim_natureza.natureza_id único  (valor: 0)
+[OK ] dim_financiamento.financiamento_id único  (valor: 0)
+[OK ] dim_uso.uso_id único  (valor: 0)
+[OK ] dim_padrao.padrao_id único  (valor: 0)
+[OK ] sem órfãos fato -> dim_tempo  (valor: 0)
+[OK ] sem órfãos fato -> dim_local  (valor: 0)
+[OK ] sem órfãos fato -> dim_natureza  (valor: 0)
+[OK ] sem órfãos fato -> dim_financiamento  (valor: 0)
+[OK ] sem órfãos fato -> dim_uso  (valor: 0)
+[OK ] sem órfãos fato -> dim_padrao  (valor: 0)
+[OK ] valor_transacao > 0  (valor: 0)
+[OK ] base_calculo >= valor_transacao (regra do ITBI)  (valor: 3765)
+[OK ] preco_m2 preenchido quando elegível  (valor: 0)
+[OK ] 24 meses (2024 e 2025) carregados  (valor: 24)
+
+=== RESUMO DAS TABELAS ===
+fato_transacoes        446916 linhas
+dim_tempo                  24 linhas
+dim_local                 288 linhas
+dim_natureza               34 linhas
+dim_financiamento           5 linhas
+dim_uso                    36 linhas
+dim_padrao                 32 linhas

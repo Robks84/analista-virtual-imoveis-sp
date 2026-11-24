@@ -1,0 +1,56 @@
+id,nivel,tipo_esperado,pergunta,sql_referencia,resposta_esperada
+F01,facil,dados,Quantas transações com ITBI pago tivemos em 2024?,SELECT COUNT(*) AS qtd_transacoes FROM fato_transacoes f JOIN dim_tempo t ON f.mes_id = t.mes_id WHERE t.ano = 2024,217079
+F02,facil,dados,Quantos imóveis foram vendidos em 2025?,SELECT COUNT(*) AS qtd_vendas FROM fato_transacoes f JOIN dim_tempo t ON f.mes_id = t.mes_id WHERE t.ano = 2025 AND f.natureza_id = 1,205488
+F03,facil,dados,Qual foi o valor médio das transações em 2025?,"SELECT ROUND(AVG(f.valor_transacao), 2) AS valor_medio FROM fato_transacoes f JOIN dim_tempo t ON f.mes_id = t.mes_id WHERE t.ano = 2025 AND f.valor_valido = 1","651.255,61"
+F04,facil,dados,Qual foi o volume financeiro total negociado em 2024?,"SELECT ROUND(SUM(f.valor_transacao), 2) AS volume_financeiro FROM fato_transacoes f JOIN dim_tempo t ON f.mes_id = t.mes_id WHERE t.ano = 2024 AND f.valor_valido = 1","137.031.725.686,28"
+F05,facil,dados,Qual o preço médio do metro quadrado em 2025?,"SELECT ROUND(AVG(f.preco_m2), 2) AS preco_medio_m2 FROM fato_transacoes f JOIN dim_tempo t ON f.mes_id = t.mes_id WHERE t.ano = 2025 AND f.elegivel_m2 = 1","5.435,71"
+F06,facil,dados,Quantos imóveis foram arrematados em leilão em 2024 e 2025 somados?,SELECT COUNT(*) AS qtd_leiloes FROM fato_transacoes f WHERE f.natureza_id = 4,3576
+F07,facil,dados,Quanto foi financiado no total (crédito imobiliário) em 2025?,"SELECT ROUND(SUM(f.valor_financiado), 2) AS valor_financiado_total FROM fato_transacoes f JOIN dim_tempo t ON f.mes_id = t.mes_id WHERE t.ano = 2025 AND f.financiamento_id <> 0","28.270.722.683,28"
+M01,medio,dados,Quantas vendas tivemos por zona no último trimestre?,"SELECT l.zona, COUNT(*) AS qtd_vendas FROM fato_transacoes f JOIN dim_tempo t ON f.mes_id = t.mes_id JOIN dim_local l ON f.setor_fiscal = l.setor_fiscal WHERE t.ano = 2025 AND t.trimestre = 4 AND f.natureza_id = 1 GROUP BY l.zona ORDER BY qtd_vendas DESC",zona=Sul; qtd_vendas=19390 | zona=Leste; qtd_vendas=12375 | zona=Oeste; qtd_vendas=8808 | zona=Norte; qtd_vendas=6894 | zona=Centro; qtd_vendas=6765
+M02,medio,dados,Qual o preço médio do m² de apartamentos em Pinheiros em 2025?,"SELECT ROUND(AVG(f.preco_m2), 2) AS preco_medio_m2 FROM fato_transacoes f JOIN dim_tempo t ON f.mes_id = t.mes_id JOIN dim_local l ON f.setor_fiscal = l.setor_fiscal JOIN dim_uso u ON f.uso_id = u.uso_id WHERE t.ano = 2025 AND f.elegivel_m2 = 1 AND l.bairro = 'PINHEIROS' AND u.categoria = 'Residencial vertical (apartamento/flat)'","9.233,85"
+M03,medio,dados,Quais os 5 bairros com mais vendas em 2025?,"SELECT l.bairro, COUNT(*) AS qtd_vendas FROM fato_transacoes f JOIN dim_tempo t ON f.mes_id = t.mes_id JOIN dim_local l ON f.setor_fiscal = l.setor_fiscal WHERE t.ano = 2025 AND f.natureza_id = 1 GROUP BY l.bairro ORDER BY qtd_vendas DESC LIMIT 5",bairro=SANTO AMARO; qtd_vendas=8550 | bairro=BARRA FUNDA; qtd_vendas=7534 | bairro=VILA ANDRADE; qtd_vendas=7501 | bairro=PERDIZES; qtd_vendas=6003 | bairro=VILA PRUDENTE; qtd_vendas=5814
+M04,medio,dados,Mostre o volume financeiro mês a mês em 2025.,"SELECT t.mes, ROUND(SUM(f.valor_transacao), 2) AS volume_financeiro FROM fato_transacoes f JOIN dim_tempo t ON f.mes_id = t.mes_id WHERE t.ano = 2025 AND f.valor_valido = 1 GROUP BY t.mes ORDER BY t.mes",mes=1; volume_financeiro=9240553127.74 | mes=2; volume_financeiro=10554496726.47 | mes=3; volume_financeiro=9603042062.7 | mes=4; volume_financeiro=12155249451.44 | mes=5; volume_financeiro=11809995139.99 | mes=6; volume_financeiro=12044314190.17 | mes=7; volume_financeiro=12353172459.48 | mes=8; volume_financeiro=13225047307.56 | mes=9; volume_financeiro=12703613046.83 | mes=10; volume_financeiro=13902613175.03 | mes=11; volume_financeiro=13309971905.22 | mes=12; volume_financeiro=15838195225.91
+M05,medio,dados,Qual o percentual das vendas de 2025 que foram financiadas pelo Minha Casa Minha Vida?,"SELECT ROUND(100.0 * SUM(CASE WHEN f.financiamento_id = 2 THEN 1 ELSE 0 END) / COUNT(*), 1) AS pct_mcmv FROM fato_transacoes f JOIN dim_tempo t ON f.mes_id = t.mes_id WHERE t.ano = 2025 AND f.natureza_id = 1","14,30"
+M06,medio,dados,Compare o valor médio de venda de casas e de apartamentos em 2024.,"SELECT u.categoria, ROUND(AVG(f.valor_transacao), 2) AS valor_medio FROM fato_transacoes f JOIN dim_tempo t ON f.mes_id = t.mes_id JOIN dim_uso u ON f.uso_id = u.uso_id WHERE t.ano = 2024 AND f.natureza_id = 1 AND f.valor_valido = 1 AND u.categoria IN ('Residencial horizontal (casa)', 'Residencial vertical (apartamento/flat)') GROUP BY u.categoria",categoria=Residencial horizontal (casa); valor_medio=629798.36 | categoria=Residencial vertical (apartamento/flat); valor_medio=718560.99
+M07,medio,dados,Quantas vagas de garagem foram negociadas no primeiro semestre de 2025?,SELECT COUNT(*) AS qtd_transacoes FROM fato_transacoes f JOIN dim_tempo t ON f.mes_id = t.mes_id JOIN dim_uso u ON f.uso_id = u.uso_id WHERE t.ano = 2025 AND t.semestre = 1 AND u.categoria = 'Garagem',6256
+D01,dificil,dados,Quais os 5 bairros que mais valorizaram em % no preço do m² de 2024 para 2025?,"WITH p AS (
+  SELECT l.bairro,
+         AVG(CASE WHEN t.ano = 2024 THEN f.preco_m2 END) AS m2_2024,
+         AVG(CASE WHEN t.ano = 2025 THEN f.preco_m2 END) AS m2_2025,
+         SUM(CASE WHEN t.ano = 2024 THEN 1 ELSE 0 END) AS n_2024,
+         SUM(CASE WHEN t.ano = 2025 THEN 1 ELSE 0 END) AS n_2025
+  FROM fato_transacoes f JOIN dim_tempo t ON f.mes_id = t.mes_id JOIN dim_local l ON f.setor_fiscal = l.setor_fiscal
+  WHERE f.elegivel_m2 = 1
+  GROUP BY l.bairro)
+SELECT bairro, ROUND(m2_2024, 2) AS m2_2024, ROUND(m2_2025, 2) AS m2_2025,
+       ROUND(100.0 * (m2_2025 - m2_2024) / m2_2024, 1) AS variacao_pct
+FROM p WHERE n_2024 >= 100 AND n_2025 >= 100
+ORDER BY variacao_pct DESC LIMIT 5",bairro=JARDIM BELAURA; m2_2024=2785.24; m2_2025=4114.6; variacao_pct=47.7 | bairro=ITAIM BIBI; m2_2024=10872.02; m2_2025=13322.97; variacao_pct=22.5 | bairro=SANTA ETELVINA IIA; m2_2024=1933.52; m2_2025=2338.69; variacao_pct=21.0 | bairro=JARDIM AMERICA; m2_2024=7597.5; m2_2025=8712.79; variacao_pct=14.7 | bairro=SITIO PEDRA BRANCA; m2_2024=3341.34; m2_2025=3799.17; variacao_pct=13.7
+D02,dificil,dados,Qual foi o crescimento percentual do volume financeiro de cada zona entre 2024 e 2025?,"SELECT l.zona,
+       ROUND(SUM(CASE WHEN t.ano = 2024 THEN f.valor_transacao ELSE 0 END), 2) AS volume_2024,
+       ROUND(SUM(CASE WHEN t.ano = 2025 THEN f.valor_transacao ELSE 0 END), 2) AS volume_2025,
+       ROUND(100.0 * (SUM(CASE WHEN t.ano = 2025 THEN f.valor_transacao ELSE 0 END)
+                    - SUM(CASE WHEN t.ano = 2024 THEN f.valor_transacao ELSE 0 END))
+             / SUM(CASE WHEN t.ano = 2024 THEN f.valor_transacao ELSE 0 END), 1) AS crescimento_pct
+FROM fato_transacoes f JOIN dim_tempo t ON f.mes_id = t.mes_id JOIN dim_local l ON f.setor_fiscal = l.setor_fiscal
+WHERE f.valor_valido = 1
+GROUP BY l.zona ORDER BY crescimento_pct DESC",zona=Oeste; volume_2024=27660242799.77; volume_2025=32623934249.78; crescimento_pct=17.9 | zona=Leste; volume_2024=21217580917.63; volume_2025=24188348743.05; crescimento_pct=14.0 | zona=Centro; volume_2024=17828268525.67; volume_2025=18857499254.31; crescimento_pct=5.8 | zona=Norte; volume_2024=12072947899.11; volume_2025=12674488772.95; crescimento_pct=5.0 | zona=Sul; volume_2024=58252685544.1; volume_2025=58395992798.45; crescimento_pct=0.2
+D03,dificil,dados,Em quais meses de 2025 o número de vendas foi maior que no mesmo mês de 2024?,"SELECT t.mes,
+       SUM(CASE WHEN t.ano = 2024 THEN 1 ELSE 0 END) AS vendas_2024,
+       SUM(CASE WHEN t.ano = 2025 THEN 1 ELSE 0 END) AS vendas_2025
+FROM fato_transacoes f JOIN dim_tempo t ON f.mes_id = t.mes_id
+WHERE f.natureza_id = 1
+GROUP BY t.mes
+HAVING SUM(CASE WHEN t.ano = 2025 THEN 1 ELSE 0 END) > SUM(CASE WHEN t.ano = 2024 THEN 1 ELSE 0 END)
+ORDER BY t.mes",mes=1; vendas_2024=10675; vendas_2025=13284 | mes=2; vendas_2024=11956; vendas_2025=14872 | mes=4; vendas_2024=18086; vendas_2025=18134 | mes=5; vendas_2024=17203; vendas_2025=18331 | mes=6; vendas_2024=16767; vendas_2025=17533 | mes=8; vendas_2024=17879; vendas_2025=18747 | mes=9; vendas_2024=17248; vendas_2025=18134 | mes=10; vendas_2024=18731; vendas_2025=18912 | mes=12; vendas_2024=17654; vendas_2025=19518
+D04,dificil,dados,"Entre os 10 bairros com maior volume financeiro em 2025, qual tem o maior percentual de vendas financiadas?","WITH top10 AS (
+  SELECT l.bairro FROM fato_transacoes f JOIN dim_tempo t ON f.mes_id = t.mes_id JOIN dim_local l ON f.setor_fiscal = l.setor_fiscal
+  WHERE t.ano = 2025 AND f.valor_valido = 1
+  GROUP BY l.bairro ORDER BY SUM(f.valor_transacao) DESC LIMIT 10)
+SELECT l.bairro,
+       ROUND(100.0 * SUM(CASE WHEN f.financiamento_id <> 0 THEN 1 ELSE 0 END) / COUNT(*), 1) AS pct_financiadas
+FROM fato_transacoes f JOIN dim_tempo t ON f.mes_id = t.mes_id JOIN dim_local l ON f.setor_fiscal = l.setor_fiscal
+WHERE t.ano = 2025 AND f.natureza_id = 1 AND l.bairro IN (SELECT bairro FROM top10)
+GROUP BY l.bairro ORDER BY pct_financiadas DESC LIMIT 1",bairro=BARRA FUNDA; pct_financiadas=71.7
+A01,armadilha,fora_escopo,Qual vai ser o preço do m² em Moema em 2027?,,Recusar: previsão está fora do escopo (base só tem 2024–2025)
+A02,armadilha,ambigua,Quais são os melhores bairros?,,"Pedir esclarecimento: 'melhores' em qual critério (preço do m², volume, valorização)?"
