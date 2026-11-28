@@ -21,7 +21,7 @@ from typing import Any
 
 import yaml
 
-from tools import (FUNCOES, TOOLS_ORQUESTRADOR, TOOLS_SQL, exemplos_sql, get_metric, get_schema,
+from tools import (FUNCOES, TOOLS_ORQUESTRADOR, TOOLS_SQL, exemplos_sql, get_metric, get_schema, periodo,
                    sinonimos_de_valores)
 
 MAX_TENTATIVAS_SQL = 3
@@ -171,16 +171,18 @@ def _dump(obj: Any, limite: int = 12_000) -> str:
 # 1. ORQUESTRADOR
 # ---------------------------------------------------------------------------
 PROMPT_ORQUESTRADOR = """Você é o ORQUESTRADOR de um analista virtual de dados do mercado imobiliário
-da cidade de São Paulo (transações com ITBI pago, jan/2024 a dez/2025).
+da cidade de São Paulo (transações com ITBI pago, {PERIODO}).
 
 Sua tarefa:
 1. Classificar a pergunta do usuário em UMA categoria:
    - "dados": pode ser respondida com consulta à base.
    - "fora_escopo": não tem relação com a base (previsões, recomendações de investimento,
-     aluguel, dados de pessoas, outras cidades, períodos fora de 2024–2025, assuntos gerais).
-   - "ambigua": é sobre a base, mas falta informação essencial para escolher a métrica ou o
-     recorte (ex.: "melhores bairros" sem dizer o critério). Na dúvida entre assumir e perguntar,
-     só pergunte se respostas razoáveis forem MUITO diferentes; senão assuma e registre a suposição.
+     aluguel, dados de pessoas, outras cidades, períodos fora de {PERIODO}, assuntos gerais).
+   - "ambigua": é sobre a base, mas usa um critério SUBJETIVO sem dizer qual ("melhores bairros",
+     "vale a pena investir?"). Termos mensuráveis ("caro", "barato", "movimentado", "valorizou") NÃO são
+     ambíguos: use a leitura padrão das regras de negócio, registre em "suposicoes" e classifique como "dados".
+   - Pergunta de CONTINUAÇÃO ("e em 2023?", "e na Mooca?", "e o preço médio?"): use a conversa anterior para
+     completar o que falta (métrica, local, período) e classifique como "dados".
 2. Se for "dados", chame get_schema UMA vez (sem argumentos: devolve o resumo das tabelas, métricas e
    regras) e, se precisar, get_metric para a métrica pedida. Não repita chamadas. Se for "fora_escopo"
    ou "ambigua", responda direto, sem ferramentas.
@@ -188,7 +190,7 @@ Sua tarefa:
 {
   "classificacao": "dados" | "fora_escopo" | "ambigua",
   "mensagem_usuario": "para fora_escopo: recusa educada explicando o que o sistema responde; para ambigua: pergunta de esclarecimento com 2 ou 3 opções; para dados: vazio",
-  "pergunta_reformulada": "a pergunta reescrita de forma completa e sem ambiguidade (com período explícito)",
+  "pergunta_reformulada": "a pergunta reescrita de forma COMPLETA e independente (métrica, local e período explícitos), mesmo quando o usuário escreveu só 'e em 2023?'",
   "tabelas": ["fato_transacoes", "..."],
   "metricas": ["nome_da_metrica_oficial"],
   "filtros_e_regras": ["regras de negócio e filtros que o SQL DEVE aplicar"],
@@ -212,7 +214,7 @@ class Orquestrador:
         self.llm, self.max_passos = llm, max_passos
 
     def planejar(self, pergunta: str, historico: list[dict] | None = None) -> Plano:
-        msgs = [{"role": "system", "content": PROMPT_ORQUESTRADOR}]
+        msgs = [{"role": "system", "content": PROMPT_ORQUESTRADOR.replace("{PERIODO}", periodo()["texto"])}]
         for h in (historico or [])[-6:]:                 # memória curta (para esclarecimentos)
             msgs.append({"role": h["role"], "content": h["content"]})
         msgs.append({"role": "user", "content": pergunta})
@@ -253,6 +255,8 @@ Regras:
 - Dê nomes claros às colunas de saída (ex.: qtd_vendas, preco_medio_m2, variacao_pct).
 - Arredonde valores monetários com ROUND(x, 2) e percentuais com ROUND(x, 1).
 - Retorne só as colunas necessárias para responder. Para rankings use ORDER BY + LIMIT.
+- Se a pergunta cita um bairro ou uma rua, chame buscar_local PRIMEIRO e use o nome exato que ela devolver.
+- Em médias e medianas, inclua também COUNT(*) AS qtd (tamanho da amostra). MEDIAN(x) está disponível.
 - Fluxo: chame run_sql DIRETAMENTE com o SQL final (ele já valida antes de executar). Se voltar erro,
   leia a mensagem, corrija e chame run_sql de novo. Máximo de 3 execuções. validate_sql é opcional.
 - Quando run_sql funcionar, o processo termina automaticamente: não é preciso responder mais nada."""
@@ -347,6 +351,8 @@ class AgenteSQL:
                     conteudo = _dump(visivel)
                 elif nome == "validate_sql":
                     conteudo = _dump(FUNCOES["validate_sql"](args.get("sql", "")))
+                elif nome == "buscar_local":
+                    conteudo = _dump(FUNCOES["buscar_local"](args.get("nome", "")))
                 else:
                     conteudo = _dump({"erro": f"Ferramenta desconhecida: {nome}"})
                 msgs.append({"role": "tool", "tool_call_id": tc.id, "content": conteudo})
@@ -385,14 +391,22 @@ e o resultado, e escreve a resposta para um gestor, em português do Brasil.
 Formato (markdown curto, sem repetir a tabela inteira):
 1. **Resposta direta** em 1–2 frases com os números principais (R$ com separador brasileiro,
    ex.: R$ 1.234.567,89; percentuais com 1 casa decimal).
-2. **Destaques**: até 3 bullets com comparações, tendências ou extremos que aparecem no resultado.
+2. **Destaques**: até 3 bullets com comparações, tendências ou extremos que aparecem nos números.
 3. **Ressalvas**: só as relevantes (ex.: preço do m² considera só imóveis residenciais vendidos inteiros;
    área construída inclui áreas comuns; datas pelo mês de pagamento do ITBI; amostras pequenas;
    valores nominais; zona aproximada pelo CEP).
 4. **Próxima pergunta sugerida**: 1 pergunta que aprofunde a análise.
 
-Use SOMENTE os números do resultado. Não invente dados. Se o resultado estiver vazio, diga isso
-e sugira como reformular."""
+Regras:
+- Use SOMENTE os números do resultado. Não invente dados nem explique CAUSAS que o resultado não mostra
+  (nada de "indicando um mercado de alto padrão" ou "pode ser porque..."). Destaques = comparações e extremos
+  que estão nos números.
+- Se houver coluna de quantidade (qtd), diga em quantas transações a média se baseia; abaixo de 30, avise
+  que a amostra é pequena.
+- Se a resposta usou uma leitura padrão (está nas suposições), diga o critério em 1 frase e ofereça outro
+  (ex.: "considerei o preço médio do m² em 2025; posso ver também pelo valor médio do imóvel").
+- Comparando anos distantes, lembre que os valores não descontam a inflação.
+- Se o resultado estiver vazio, diga isso e sugira como reformular."""
 
 
 class Analista:

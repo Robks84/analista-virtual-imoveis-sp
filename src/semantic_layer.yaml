@@ -1,5 +1,5 @@
 # =============================================================================
-# CAMADA SEMÂNTICA — Transações imobiliárias com ITBI pago (São Paulo, 2024–2025)
+# CAMADA SEMÂNTICA — Transações imobiliárias com ITBI pago (São Paulo, 2019–2025)
 # Fonte: Prefeitura de SP / Secretaria Municipal da Fazenda (dados abertos)
 # Banco: data/processed/itbi.db (SQLite) — modelo estrela (1 fato + 6 dimensões)
 #
@@ -9,18 +9,18 @@
 
 dominio:
   nome: "Mercado imobiliário da cidade de São Paulo (transações com ITBI pago)"
-  periodo_disponivel: "jan/2024 a dez/2025 (24 meses, por mês de PAGAMENTO do ITBI)"
+  periodo_disponivel: "jan/2019 a dez/2025, por mês de PAGAMENTO do ITBI (o período real é o de dim_tempo)"
   granularidade: "1 linha = 1 Declaração de Transação Imobiliária (DTI) com ITBI pago"
   moeda: "R$ nominais (sem correção pela inflação)"
   dialeto_sql: "SQLite"
   escopo_responde:
     - "Quantidade de transações, volume financeiro, valor médio, preço do m²"
     - "Recortes por mês/trimestre/ano, bairro, zona, tipo de imóvel, tipo de transação, financiamento"
-    - "Comparações e variações entre períodos (2024 x 2025)"
+    - "Comparações, variações e tendências entre anos e meses"
   escopo_nao_responde:
     - "Previsões de preço, recomendação de compra/investimento, aluguel"
     - "Dados de compradores/vendedores (a base não tem nomes nem CPF)"
-    - "Outras cidades ou períodos fora de 2024–2025"
+    - "Outras cidades ou períodos fora dos anos carregados"
     - "Qualquer assunto que não seja transações imobiliárias de SP"
 
 tabelas:
@@ -37,6 +37,7 @@ tabelas:
       padrao_id: "FK dim_padrao. Padrão construtivo segundo o IPTU."
       sql_cadastro: "Número do cadastro do imóvel no IPTU (11 dígitos). Vários registros podem ter o mesmo SQL (unidades de um empreendimento ainda não desmembrado)."
       cep: "CEP do logradouro (texto, 8 dígitos)"
+      logradouro: "Nome da rua/avenida padronizado, sem número (ex.: 'RUA TEODORO SAMPAIO', 'AVENIDA PAULISTA'). MAIÚSCULO e SEM ACENTO. Use buscar_local para achar o nome exato."
       bairro_informado: "Bairro como veio no cadastro, normalizado. MUITO incompleto (~40% nulo). NÃO usar para agrupar por bairro: use dim_local.bairro."
       data_transacao: "Data da escritura/contrato (texto AAAA-MM-DD). Pode ser anterior ao ano do pagamento. Usar só se a pergunta pedir explicitamente a data do negócio/escritura."
       valor_transacao: "Valor declarado do negócio, em R$."
@@ -56,12 +57,12 @@ tabelas:
       preco_m2: "valor_transacao / area_construida_m2, preenchido SOMENTE quando elegivel_m2 = 1 (R$/m²)."
 
   dim_tempo:
-    descricao: "Calendário mensal (mês de pagamento do ITBI). 24 linhas."
+    descricao: "Calendário mensal (mês de pagamento do ITBI). 12 linhas por ano carregado."
     chave: [mes_id]
     colunas:
       mes_id: "AAAAMM (inteiro). Ex.: 202412"
       ano_mes: "Texto 'AAAA-MM'. Ex.: '2024-12'"
-      ano: "2024 ou 2025"
+      ano: "Ano de pagamento do ITBI (2019 a 2025)"
       mes: "1 a 12"
       nome_mes: "Jan, Fev, Mar, Abr, Mai, Jun, Jul, Ago, Set, Out, Nov, Dez"
       trimestre: "1 a 4"
@@ -87,7 +88,7 @@ tabelas:
     descricao: "Modalidade de financiamento declarada."
     chave: [financiamento_id]
     colunas:
-      financiamento_id: "0 = Sem financiamento; 1 = SFH; 2 = Minha Casa Minha Vida; 3 = Consórcio; 99 = SFI/Carteira Hipotecária"
+      financiamento_id: "0 = Sem financiamento; 1 = SFH; 2 = Minha Casa Minha Vida; 3 = Consórcio; 99 = SFI/Carteira Hipotecária. Os códigos 4 e 5 aparecem em anos anteriores a 2024 sem descrição na planilha oficial: contam como financiados, mas não devem ser nomeados."
       descricao: "Descrição da modalidade"
       financiado: "1 se houve financiamento, 0 se não"
 
@@ -135,6 +136,16 @@ metricas:
     sql: "AVG(f.valor_transacao)"
     filtro: "f.valor_valido = 1"
     unidade: "R$"
+  valor_mediano:
+    descricao: "Valor mediano por transação (metade das transações custou menos que isso; menos sensível a extremos que a média)"
+    sql: "MEDIAN(f.valor_transacao)"
+    filtro: "f.valor_valido = 1"
+    unidade: "R$"
+  preco_mediano_m2:
+    descricao: "Preço mediano do metro quadrado (residenciais vendidos inteiros)"
+    sql: "MEDIAN(f.preco_m2)"
+    filtro: "f.elegivel_m2 = 1"
+    unidade: "R$/m²"
   preco_medio_m2:
     descricao: "Preço médio do metro quadrado de imóveis residenciais vendidos inteiros"
     sql: "AVG(f.preco_m2)"
@@ -182,6 +193,16 @@ sinonimos:
   qtd_compras_vendas: [vendas, compras, imóveis vendidos, quantos imóveis foram vendidos, quantas vendas]
   volume_financeiro: [volume, valor total, quanto movimentou, VGV, total negociado, dinheiro movimentado]
   valor_medio: [ticket médio, preço médio, valor médio do imóvel, quanto custa em média]
+  valor_mediano:
+    descricao: "Valor mediano por transação (metade das transações custou menos que isso; menos sensível a extremos que a média)"
+    sql: "MEDIAN(f.valor_transacao)"
+    filtro: "f.valor_valido = 1"
+    unidade: "R$"
+  preco_mediano_m2:
+    descricao: "Preço mediano do metro quadrado (residenciais vendidos inteiros)"
+    sql: "MEDIAN(f.preco_m2)"
+    filtro: "f.elegivel_m2 = 1"
+    unidade: "R$/m²"
   preco_medio_m2: [preço do metro quadrado, m², metro quadrado, valor do m², R$/m²]
   pct_financiadas: [percentual financiado, quantos usaram financiamento, participação do crédito]
   valor_financiado_total: [crédito imobiliário, total financiado, empréstimo]
@@ -196,6 +217,9 @@ sinonimos:
   dim_financiamento.financiamento_id = 1: [SFH, sistema financeiro de habitação]
   dim_local.zona: [região, zona sul, zona leste, zona norte, zona oeste, centro]
   dim_local.bairro: [bairro, região do bairro, vizinhança]
+  fato_transacoes.logradouro: [rua, avenida, alameda, endereço, logradouro]
+  valor_mediano: [mediana, valor mediano, valor típico]
+  "dim_local.bairro IN ('JARDIM PAULISTA', 'JARDIM AMERICA')": [Jardins, região dos Jardins]
 
 regras_de_negocio:
   - "O tempo padrão é o MÊS DE PAGAMENTO do ITBI (dim_tempo via mes_id). 'Transações em 2024' = t.ano = 2024. Só use data_transacao se a pergunta falar explicitamente em data da escritura/contrato/negócio."
@@ -205,9 +229,14 @@ regras_de_negocio:
   - "Agrupar ou filtrar por bairro SEMPRE com dim_local.bairro (texto MAIÚSCULO e SEM ACENTO). Para filtrar um bairro use igualdade ou LIKE, ex.: l.bairro = 'VILA MARIANA'. Não use bairro_informado."
   - "Ao ranquear bairros por média (preço do m², valor médio), exigir volume mínimo: HAVING COUNT(*) >= 100, para evitar médias de poucos casos."
   - "'Último mês' = 2025-12; 'último trimestre' = 4º trimestre de 2025; 'último ano'/'ano passado' = 2025; 'este ano' é ambíguo (dados vão até 2025) — assumir 2025 e avisar."
-  - "Comparações de crescimento entre anos usam 2024 como base e 2025 como atual."
+  - "Comparação entre anos sem dizer quais: o ano mais recente (2025) contra o anterior (2024). 'Desde 2019' ou 'nos últimos anos' = série completa ano a ano. Tendências ao longo do tempo: agrupar por t.ano (ou t.ano_mes para série mensal de vários anos)."
+  - "Valores são nominais: ao comparar anos distantes (ex.: 2019 x 2025), avisar que a inflação do período não foi descontada."
   - "Valores em R$ nominais. Arredondar valores monetários a 2 casas e percentuais a 1 casa."
   - "A base não tem dados de pessoas (compradores/vendedores) nem de aluguel; perguntas sobre isso estão fora de escopo."
+  - "LEITURAS PADRÃO (assumir, avisar em 'suposicoes' e responder, sem pedir esclarecimento): 'caro'/'barato'/'mais valorizado em preço' = preço médio do m² (f.elegivel_m2 = 1) no ano mais recente, com HAVING COUNT(*) >= 100; 'mais movimentado'/'mais vendas' = número de compras e vendas; 'valorizou'/'cresceu' = variação % do preço médio do m² entre o ano anterior e o mais recente; 'quanto custa' = valor médio. Pedir esclarecimento só para critérios subjetivos: 'melhor', 'bom para morar/investir', 'vale a pena'."
+  - "Pergunta sem ano: usar o ano mais recente (2025) quando pede um retrato ('qual o bairro mais caro'); usar todos os anos quando pede evolução/tendência."
+  - "Bairro ou rua citados: chamar buscar_local antes e usar o nome exato retornado. Se buscar_local não achar nada, dizer que o local não está na base com esse nome."
+  - "Médias e medianas: incluir também COUNT(*) AS qtd na saída, para mostrar o tamanho da amostra."
   - "NUNCA invente valores de texto em filtros. Para tipo de imóvel use u.categoria com um dos valores exatos listados; para natureza e financiamento prefira os códigos (f.natureza_id, f.financiamento_id). Os sinônimos de valores mostram o filtro certo (ex.: apartamento -> u.categoria = 'Residencial vertical (apartamento/flat)'; leilão -> f.natureza_id = 4; MCMV -> f.financiamento_id = 2)."
   - "Vagas de garagem, lojas, salas comerciais, terrenos, galpões e casas SÃO imóveis da base (dim_uso.categoria) e estão dentro do escopo."
   - "Séries mensais de um ano: agrupe e devolva t.mes (1 a 12). Comparação do mesmo mês entre anos: agrupe por t.mes e calcule uma coluna por ano com CASE WHEN t.ano = ... Não use mes_id (AAAAMM) como rótulo de mês."

@@ -11,6 +11,19 @@ Lendo GUIAS-DE-ITBI-PAGAS-2024.xlsx ...
    OUT-2024:  21030 linhas
    NOV-2024:  17866 linhas
    DEZ-2024:  20398 linhas
+Lendo GUIAS_DE_ITBI_PAGAS_2019.xlsx ...
+   JAN-2019:   6042 linhas
+   FEV-2019:   7229 linhas
+   MAR-2019:   7059 linhas
+   ABR-2019:   8708 linhas
+   MAI-2019:   8902 linhas
+   JUN-2019:   8587 linhas
+   JUL-2019:   9276 linhas
+   AGO-2019:   9312 linhas
+   SET-2019:   8928 linhas
+   OUT-2019:  10563 linhas
+   NOV-2019:   8950 linhas
+   DEZ-2019:  11851 linhas
 Lendo GUIAS_DE_ITBI_PAGAS__28012026__XLS.xlsx ...
    JAN-2025:  14456 linhas
    FEV-2025:  16649 linhas
@@ -24,19 +37,21 @@ Lendo GUIAS_DE_ITBI_PAGAS__28012026__XLS.xlsx ...
    OUT-2025:  21182 linhas
    NOV-2025:  18775 linhas
    DEZ-2025:  23677 linhas
-Total bruto: 448271 linhas
+Total bruto: 553678 linhas
 [limpeza] linhas desalinhadas/cabeçalho repetido removidas: 10
-[limpeza] duplicatas exatas removidas: 1345
+[limpeza] transações sem valor declarado (valor <= 0) removidas: 7
+[limpeza] duplicatas exatas removidas: 1727
 [limpeza] valor_financiado negativo -> NULL/0: 5
-[limpeza] ano de construção fora de 1800-2026 -> NULL: 3
-[limpeza] transações com valor < R$ 10 mil (valor_valido=0): 7856
-[limpeza] transações elegíveis para preço do m²: 164481
-[limpeza] linhas finais: 446916 (de 448271)
+[limpeza] ano de construção fora de 1800-2026 -> NULL: 4
+[limpeza] transações com valor < R$ 10 mil (valor_valido=0): 10796
+[limpeza] transações elegíveis para preço do m²: 225041
+[limpeza] linhas finais: 551934 (de 553678)
+[modelagem] dim_local: 288 setores da referência, 2 novos
 Banco gravado em data/processed/itbi.db
 
 === TESTES DE QUALIDADE ===
-[OK ] fato com >= 5.000 linhas  (valor: 446916)
-[OK ] fato com >= 8 colunas  (valor: 26)
+[OK ] fato com >= 5.000 linhas  (valor: 551934)
+[OK ] fato com >= 8 colunas  (valor: 27)
 [OK ] sem nulos em fato.mes_id  (valor: 0)
 [OK ] sem nulos em fato.setor_fiscal  (valor: 0)
 [OK ] sem nulos em fato.natureza_id  (valor: 0)
@@ -57,14 +72,14 @@ Banco gravado em data/processed/itbi.db
 [OK ] sem órfãos fato -> dim_uso  (valor: 0)
 [OK ] sem órfãos fato -> dim_padrao  (valor: 0)
 [OK ] valor_transacao > 0  (valor: 0)
-[OK ] base_calculo >= valor_transacao (regra do ITBI)  (valor: 3765)
+[OK ] base_calculo >= valor_transacao (regra do ITBI)  (valor: 4761)
 [OK ] preco_m2 preenchido quando elegível  (valor: 0)
-[OK ] 24 meses (2024 e 2025) carregados  (valor: 24)
+[OK ] 12 meses para cada um dos 3 anos carregados  (valor: 36)
 
 === RESUMO DAS TABELAS ===
-fato_transacoes        446916 linhas
-dim_tempo                  24 linhas
-dim_local                 288 linhas
+fato_transacoes        551934 linhas
+dim_tempo                  36 linhas
+dim_local                 290 linhas
 dim_natureza               34 linhas
 dim_financiamento           5 linhas
 dim_uso                    36 linhas

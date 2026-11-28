@@ -9,7 +9,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 import pytest  # noqa: E402
 
-from tools import LIMITE_MAXIMO, LIMITE_PADRAO, get_metric, get_schema, run_sql, validate_sql  # noqa: E402
+from tools import (LIMITE_MAXIMO, LIMITE_PADRAO, buscar_local, get_metric, get_schema, make_chart,  # noqa: E402
+                   run_sql, validate_sql)
 
 
 @pytest.mark.parametrize("sql", [
@@ -83,4 +84,26 @@ def test_get_schema_filtra_tabelas():
 def test_consulta_valida_executa():
     r = run_sql("SELECT t.ano, COUNT(*) AS qtd FROM fato_transacoes f "
                 "JOIN dim_tempo t ON f.mes_id = t.mes_id GROUP BY t.ano")
-    assert r["ok"] and r["colunas"] == ["ano", "qtd"] and len(r["linhas"]) == 2
+    assert r["ok"] and r["colunas"] == ["ano", "qtd"] and len(r["linhas"]) >= 2
+
+
+def test_mediana_disponivel():
+    r = run_sql("SELECT MEDIAN(valor_transacao) AS mediana FROM fato_transacoes WHERE valor_valido = 1")
+    assert r["ok"] and r["linhas"][0][0] > 0
+
+
+def test_buscar_local_aceita_acento_minuscula_e_erro():
+    assert "VILA MADALENA" in buscar_local("vila madalena")["bairros"]
+    assert "MOOCA" in buscar_local("Moóca")["bairros"]
+    assert "PINHEIROS" in buscar_local("Pinheros")["bairros"]
+    assert any(r["logradouro"] == "RUA TEODORO SAMPAIO" for r in buscar_local("Teodoro Sampaio")["ruas"])
+
+
+def test_buscar_local_inexistente_nao_inventa():
+    r = buscar_local("Xyzwqk Inexistente")
+    assert r["bairros"] == [] and r["ruas"] == []
+
+
+def test_grafico_comeca_no_zero():
+    fig = make_chart(["ano", "preco_medio_m2"], [[2019, 3900.0], [2025, 5400.0]], "teste")
+    assert fig.axes[0].get_ylim()[0] == 0

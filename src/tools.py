@@ -49,6 +49,17 @@ def _norm(s: str) -> str:
     return "".join(c for c in s if not unicodedata.combining(c)).strip()
 
 
+@lru_cache(maxsize=1)
+def periodo() -> dict:
+    """Anos realmente carregados no banco (o período muda conforme as planilhas em data/raw)."""
+    con = sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True)
+    ini, fim = con.execute("SELECT MIN(ano), MAX(ano) FROM dim_tempo").fetchone()
+    n = con.execute("SELECT COUNT(*) FROM fato_transacoes").fetchone()[0]
+    con.close()
+    return {"ano_inicio": ini, "ano_fim": fim, "transacoes": n,
+            "texto": f"jan/{ini} a dez/{fim}"}
+
+
 def sinonimos_de_valores() -> dict:
     """Sinônimos que viram FILTRO (ex.: 'apartamento' -> u.categoria = '...'). Evita a LLM inventar valores."""
     return {k: v for k, v in semantic_layer()["sinonimos"].items() if "." in k}
@@ -64,7 +75,8 @@ def get_schema(tabelas: list[str] | None = None) -> dict:
     if not tabelas:
         # resumo enxuto (economiza tokens): descrição + nomes das colunas de cada tabela
         return {
-            "dominio": {k: sl["dominio"][k] for k in ("periodo_disponivel", "granularidade", "escopo_nao_responde")},
+            "dominio": {**{k: sl["dominio"][k] for k in ("granularidade", "escopo_nao_responde")},
+                        "periodo_carregado": periodo()["texto"]},
             "tabelas": {k: {"descricao": v["descricao"], "colunas": list(v["colunas"])} for k, v in todas.items()},
             "regras_de_negocio": sl["regras_de_negocio"],
             "metricas_disponiveis": {k: v["descricao"] for k, v in sl["metricas"].items()},
@@ -97,8 +109,61 @@ def get_metric(nome: str) -> dict:
     return {"erro": f"Métrica '{nome}' não encontrada.", "metricas_disponiveis": list(metricas)}
 
 
+def buscar_local(nome: str) -> dict:
+    """Acha o nome EXATO de bairro (dim_local.bairro) e/ou rua (fato_transacoes.logradouro) a partir
+    do que o usuário digitou (com acento, minúsculas, abreviado ou com erro de digitação)."""
+    import difflib
+    alvo = re.sub(r"[^A-Z0-9 ]", " ", _norm(nome).upper())
+    alvo = re.sub(r"\s+", " ", alvo).strip()
+    if not alvo:
+        return {"erro": "Informe um nome de bairro ou rua."}
+    con = _conectar()
+    bairros = [r[0] for r in con.execute("SELECT DISTINCT bairro FROM dim_local")]
+    apelidos = {"JARDINS": ["JARDIM PAULISTA", "JARDIM AMERICA", "JARDIM EUROPA"]}
+    achados = ([b for b in apelidos.get(alvo, []) if b in bairros]
+               or [b for b in bairros if alvo in b]
+               or difflib.get_close_matches(alvo, bairros, n=5, cutoff=0.75))
+    palavras = [p for p in alvo.split() if p not in {"RUA", "R", "AV", "AVENIDA", "ALAMEDA", "AL"}]
+    ruas = []
+    if palavras:
+        filtro = " AND ".join("logradouro LIKE ?" for _ in palavras)
+        ruas = [{"logradouro": r[0], "transacoes": r[1]} for r in con.execute(
+            f"SELECT logradouro, COUNT(*) FROM fato_transacoes WHERE {filtro} "
+            "GROUP BY logradouro ORDER BY 2 DESC LIMIT 5", [f"%{p}%" for p in palavras])]
+    con.close()
+    return {"bairros": achados[:5], "ruas": ruas,
+            "dica": "Use o valor exato com '=' (ex.: l.bairro = 'VILA MADALENA'). Se nada foi encontrado, "
+                    "o local não existe com esse nome na base: diga isso ao usuário."}
+
+
 def exemplos_sql() -> list[dict]:
     return semantic_layer().get("exemplos", [])
+
+
+# ---------------------------------------------------------------------------
+# Funções extras no SQLite (o SQLite não tem mediana nativa)
+# ---------------------------------------------------------------------------
+class _Mediana:
+    def __init__(self):
+        self.valores = []
+
+    def step(self, v):
+        if v is not None:
+            self.valores.append(v)
+
+    def finalize(self):
+        if not self.valores:
+            return None
+        v = sorted(self.valores)
+        m = len(v) // 2
+        return v[m] if len(v) % 2 else (v[m - 1] + v[m]) / 2
+
+
+def _conectar() -> sqlite3.Connection:
+    """Conexão SOMENTE LEITURA com as funções extras registradas."""
+    con = sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True)
+    con.create_aggregate("MEDIAN", 1, _Mediana)
+    return con
 
 
 # ---------------------------------------------------------------------------
@@ -177,7 +242,7 @@ def validate_sql(sql: str) -> dict:
 
     # 5) o SQLite consegue compilar? (EXPLAIN não executa a consulta)
     try:
-        con = sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True)
+        con = _conectar()
         con.execute(f"EXPLAIN {sql_final}")
         con.close()
     except sqlite3.Error as e:
@@ -194,7 +259,7 @@ def run_sql(sql: str, max_linhas_retorno: int = LIMITE_MAXIMO) -> dict:
         return {"ok": False, "erro": " | ".join(v["erros"]), "sql": sql}
     sql_final = v["sql_final"]
 
-    con = sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True)   # somente leitura no nível do driver
+    con = _conectar()                                            # somente leitura no nível do driver
     con.execute("PRAGMA query_only = ON")
     inicio = time.time()
 
@@ -230,8 +295,72 @@ def run_sql(sql: str, max_linhas_retorno: int = LIMITE_MAXIMO) -> dict:
 # ---------------------------------------------------------------------------
 # Opcional: gráfico simples para o Agente Analista / interface
 # ---------------------------------------------------------------------------
-def make_chart(colunas: list[str], linhas: list[list[Any]]):
-    """Gera um gráfico matplotlib quando o resultado tem 1 coluna de rótulo + 1 numérica."""
+_TEMPORAIS = {"ano", "mes", "mes_num", "mes_id", "ano_mes", "trimestre", "semestre", "nome_mes"}
+
+
+def _tipo_valor(col: str) -> str:
+    c = col.lower()
+    if any(k in c for k in ("pct", "percent", "variacao", "crescimento", "taxa")):
+        return "pct"
+    if any(k in c for k in ("valor", "preco", "volume", "financiado", "m2", "ticket", "base_calculo")):
+        return "rs"
+    return "num"
+
+
+def _fmt(v: float, tipo: str) -> str:
+    if v is None:
+        return ""
+    if tipo == "pct":
+        return f"{v:.1f}%".replace(".", ",")
+    if tipo == "rs":
+        for lim, suf in ((1e9, "bi"), (1e6, "mi"), (1e3, "mil")):
+            if abs(v) >= lim:
+                return f"R$ {v / lim:.1f} {suf}".replace(".", ",")
+        return f"R$ {v:.0f}"
+    return f"{v:,.0f}".replace(",", ".") if abs(v) >= 1 else f"{v:.2f}".replace(".", ",")
+
+
+def _nome_bonito(col: str) -> str:
+    nomes = {"preco_medio_m2": "Preço médio do m² (R$)", "preco_m2": "Preço do m² (R$)",
+             "volume_financeiro": "Volume negociado (R$)", "valor_medio": "Valor médio (R$)",
+             "qtd_vendas": "Número de vendas", "qtd_transacoes": "Número de transações",
+             "qtd_compras_vendas": "Número de vendas", "pct_financiadas": "Vendas financiadas (%)",
+             "variacao_pct": "Variação (%)", "ano": "Ano", "mes": "Mês", "zona": "Zona", "bairro": "Bairro"}
+    return nomes.get(col.lower(), col.replace("_", " ").strip().capitalize())
+
+
+def _grafico_series(colunas, linhas, cat_idx, tempo_idx, vi, titulo, plt):
+    """Várias linhas no mesmo gráfico, uma por categoria (ex.: Moema x Tatuapé ano a ano)."""
+    tipo = _tipo_valor(colunas[vi])
+    periodos = sorted({r[tempo_idx] for r in linhas}, key=str)
+    fig, ax = plt.subplots(figsize=(8, 4.2))
+    maximo = 0
+    for cat in dict.fromkeys(r[cat_idx] for r in linhas):
+        pontos = {r[tempo_idx]: r[vi] for r in linhas if r[cat_idx] == cat and r[vi] is not None}
+        xs = [str(p) for p in periodos if p in pontos]
+        ys = [pontos[p] for p in periodos if p in pontos]
+        if not ys:
+            continue
+        ax.plot(xs, ys, marker="o", linewidth=2, label=str(cat).title())
+        ax.annotate(_fmt(ys[-1], tipo), (xs[-1], ys[-1]), textcoords="offset points", xytext=(0, 8),
+                    ha="center", fontsize=8)
+        maximo = max(maximo, max(ys))
+    ax.set_ylim(0, maximo * 1.18 if maximo > 0 else 1)
+    ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda v, _: _fmt(v, tipo)))
+    ax.set_ylabel(_nome_bonito(colunas[vi]))
+    ax.set_xlabel(_nome_bonito(colunas[tempo_idx]))
+    if len(periodos) > 6:
+        ax.tick_params(axis="x", rotation=45)
+    ax.legend(frameon=False, fontsize=9)
+    if titulo:
+        ax.set_title(titulo if len(titulo) <= 80 else titulo[:77] + "...", fontsize=11, loc="left")
+    ax.spines[["top", "right"]].set_visible(False)
+    fig.tight_layout()
+    return fig
+
+
+def make_chart(colunas: list[str], linhas: list[list[Any]], titulo: str | None = None):
+    """Gráfico legível: eixo a partir do zero, valores escritos nos pontos/barras, nomes em português."""
     if not linhas or len(colunas) < 2 or len(linhas) < 2:
         return None
     try:
@@ -240,18 +369,62 @@ def make_chart(colunas: list[str], linhas: list[list[Any]]):
         import matplotlib.pyplot as plt
     except ImportError:
         return None
-    idx_num = [i for i in range(1, len(colunas)) if all(isinstance(r[i], (int, float)) or r[i] is None for r in linhas)]
-    if not idx_num:
+    if titulo:  # tira nomes técnicos do título: "preço médio do m² (preco_medio_m2)" -> "preço médio do m²"
+        titulo = re.sub(r"\s*\([^)]*_[^)]*\)", "", titulo).strip()
+    numericas = [i for i in range(len(colunas))
+                 if all(isinstance(r[i], (int, float)) or r[i] is None for r in linhas)]
+    tempo_idx = next((i for i in range(len(colunas)) if colunas[i].lower() in _TEMPORAIS), None)
+    textos = [i for i in range(len(colunas)) if i not in numericas]
+    # formato "longo" (categoria + período + valor, ex.: bairro, ano, preço): uma linha por categoria
+    if tempo_idx is not None and textos and textos[0] != tempo_idx:
+        cat_idx = textos[0]
+        vals = [i for i in numericas if i not in (tempo_idx, cat_idx)]
+        principais = [i for i in vals if not colunas[i].lower().startswith(("qtd", "n_", "amostra"))]
+        if vals and len({r[cat_idx] for r in linhas}) <= 8:
+            return _grafico_series(colunas, linhas, cat_idx, tempo_idx, (principais or vals)[0], titulo, plt)
+    rotulo_idx = next((i for i in range(len(colunas)) if i not in numericas), tempo_idx if tempo_idx is not None else 0)
+    candidatas = [i for i in numericas if i != rotulo_idx and colunas[i].lower() not in _TEMPORAIS]
+    if not candidatas:
         return None
-    i = idx_num[-1]
-    rotulos = [str(r[0]) for r in linhas[:30]]
-    valores = [r[i] or 0 for r in linhas[:30]]
-    fig, ax = plt.subplots(figsize=(8, 4))
-    temporal = colunas[0].lower() in {"mes", "mes_id", "ano_mes", "trimestre", "ano"}
-    (ax.plot if temporal else ax.bar)(rotulos, valores, color="#2F6690")
-    ax.set_ylabel(colunas[i])
-    ax.set_xlabel(colunas[0])
-    ax.tick_params(axis="x", rotation=45)
+    # prefere a métrica principal (não a coluna de contagem de amostra), quando houver outra
+    principais = [i for i in candidatas if not colunas[i].lower().startswith(("qtd", "n_", "amostra"))]
+    vi = (principais or candidatas)[0]
+    dados = linhas[:30]
+    rotulos = [str(r[rotulo_idx]) for r in dados]
+    valores = [r[vi] or 0 for r in dados]
+    tipo = _tipo_valor(colunas[vi])
+    temporal = colunas[rotulo_idx].lower() in _TEMPORAIS
+
+    longos = not temporal and (len(dados) > 8 or max(len(x) for x in rotulos) > 12)
+    fig, ax = plt.subplots(figsize=(8, 4.2 if not longos else 0.35 * len(dados) + 1.2))
+    cor = "#2F6690"
+    if temporal:
+        ax.plot(rotulos, valores, color=cor, marker="o", linewidth=2)
+        for x, y in zip(rotulos, valores):
+            ax.annotate(_fmt(y, tipo), (x, y), textcoords="offset points", xytext=(0, 8),
+                        ha="center", fontsize=8)
+        ax.set_ylim(min(0, min(valores) * 1.15), max(valores) * 1.18 if max(valores) > 0 else 1)
+    elif longos:
+        ax.barh(rotulos[::-1], valores[::-1], color=cor)
+        for y, v in zip(rotulos[::-1], valores[::-1]):
+            ax.annotate(_fmt(v, tipo), (v, y), textcoords="offset points", xytext=(4, 0),
+                        va="center", fontsize=8)
+        ax.set_xlim(min(0, min(valores) * 1.15), max(valores) * 1.2 if max(valores) > 0 else 1)
+    else:
+        ax.bar(rotulos, valores, color=cor)
+        for x, v in zip(rotulos, valores):
+            ax.annotate(_fmt(v, tipo), (x, v), textcoords="offset points", xytext=(0, 4),
+                        ha="center", fontsize=8)
+        ax.set_ylim(min(0, min(valores) * 1.15), max(valores) * 1.18 if max(valores) > 0 else 1)
+    eixo_valor = ax.xaxis if longos else ax.yaxis
+    eixo_valor.set_major_formatter(plt.FuncFormatter(lambda v, _: _fmt(v, tipo)))
+    (ax.set_xlabel if longos else ax.set_ylabel)(_nome_bonito(colunas[vi]))
+    if not longos:
+        ax.set_xlabel(_nome_bonito(colunas[rotulo_idx]))
+        if len(dados) > 6:
+            ax.tick_params(axis="x", rotation=45)
+    if titulo:
+        ax.set_title(titulo if len(titulo) <= 80 else titulo[:77] + "...", fontsize=11, loc="left")
     ax.spines[["top", "right"]].set_visible(False)
     fig.tight_layout()
     return fig
@@ -281,9 +454,14 @@ TOOLS_SQL = [
         "description": "Valida o SQL sem executar (somente leitura, tabelas válidas, regras de negócio, sintaxe).",
         "parameters": {"type": "object", "properties": {"sql": {"type": "string"}}, "required": ["sql"]}}},
     {"type": "function", "function": {
+        "name": "buscar_local",
+        "description": "Acha o nome exato de um bairro ou rua citado na pergunta (aceita acento, minúscula e erro de digitação). Use ANTES de filtrar por bairro ou rua.",
+        "parameters": {"type": "object", "properties": {"nome": {"type": "string"}}, "required": ["nome"]}}},
+    {"type": "function", "function": {
         "name": "run_sql",
         "description": "Executa um SELECT somente leitura no banco SQLite e devolve colunas e linhas.",
         "parameters": {"type": "object", "properties": {"sql": {"type": "string"}}, "required": ["sql"]}}},
 ]
 
-FUNCOES = {"get_schema": get_schema, "get_metric": get_metric, "validate_sql": validate_sql, "run_sql": run_sql}
+FUNCOES = {"get_schema": get_schema, "get_metric": get_metric, "validate_sql": validate_sql, "run_sql": run_sql,
+           "buscar_local": buscar_local}

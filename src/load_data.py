@@ -23,6 +23,7 @@ ROOT = Path(__file__).resolve().parents[1]
 RAW_DIR = ROOT / "data" / "raw"
 DB_PATH = ROOT / "data" / "processed" / "itbi.db"
 REPORT_PATH = ROOT / "data" / "processed" / "relatorio_qualidade.txt"
+REF_LOCAL = ROOT / "data" / "reference" / "dim_local.csv"
 
 # As abas mensais têm sempre as mesmas 28 colunas, na mesma ordem.
 # Os cabeçalhos, porém, variam (JAN-2024 e OUT-2024 vêm SEM cabeçalho e algumas
@@ -122,6 +123,37 @@ def limpar_bairro(b) -> str | None:
     return b
 
 
+TIPOS_LOGRADOURO = {"R": "RUA", "AV": "AVENIDA", "AL": "ALAMEDA", "PCA": "PRACA", "PC": "PRACA",
+                    "EST": "ESTRADA", "TV": "TRAVESSA", "VD": "VIADUTO", "ROD": "RODOVIA", "LGO": "LARGO",
+                    "VL": "VILA", "PQ": "PARQUE", "PSG": "PASSAGEM", "VIELA": "VIELA"}
+
+
+TITULOS_LOGRADOURO = {
+    "DR": "DOUTOR", "PROF": "PROFESSOR", "CEL": "CORONEL", "STA": "SANTA", "STO": "SANTO", "PDE": "PADRE",
+    "NSRA": "NOSSA SENHORA", "BRIG": "BRIGADEIRO", "ENG": "ENGENHEIRO", "SEN": "SENADOR", "CAP": "CAPITAO",
+    "PRES": "PRESIDENTE", "MIN": "MINISTRO", "CONS": "CONSELHEIRO", "GAL": "GENERAL", "MARQ": "MARQUES",
+    "MAJ": "MAJOR", "MAL": "MARECHAL", "VER": "VEREADOR", "VISC": "VISCONDE", "DES": "DESEMBARGADOR",
+    "DEP": "DEPUTADO", "TEN": "TENENTE", "GOV": "GOVERNADOR", "CMTE": "COMANDANTE", "ALM": "ALMIRANTE",
+}
+
+
+def limpar_logradouro(l) -> str | None:
+    """Nome da rua padronizado (sem número/complemento): 'R DR JOSE ELIAS' -> 'RUA DR JOSE ELIAS'."""
+    if not isinstance(l, str) or not l.strip():
+        return None
+    l = sem_acento(l.upper().strip())
+    l = re.sub(r"[^A-Z0-9 ]", " ", l)
+    l = re.sub(r"\s+", " ", l).strip()
+    partes = l.split(" ", 1)
+    if partes[0] in TIPOS_LOGRADOURO:
+        partes[0] = TIPOS_LOGRADOURO[partes[0]]
+    if len(partes) > 1:  # título logo após o tipo: 'AV BRIG FARIA LIMA' -> 'AVENIDA BRIGADEIRO FARIA LIMA'
+        resto = partes[1].split(" ", 1)
+        resto[0] = TITULOS_LOGRADOURO.get(resto[0], resto[0])
+        partes[1] = " ".join(resto)
+    return " ".join(partes)
+
+
 def zona_por_cep(cep) -> str:
     """Zona aproximada a partir das faixas de CEP da capital (Correios)."""
     try:
@@ -183,6 +215,9 @@ def limpar(bruto: pd.DataFrame) -> pd.DataFrame:
           & pd.to_numeric(df["sql_cadastro"], errors="coerce").notna())
     log(f"[limpeza] linhas desalinhadas/cabeçalho repetido removidas: {(~ok).sum()}")
     df = df[ok].copy()
+    zero = df["valor_transacao"] <= 0
+    log(f"[limpeza] transações sem valor declarado (valor <= 0) removidas: {zero.sum()}")
+    df = df[~zero].copy()
 
     # 2.2 Tipos
     num = ["valor_venal_referencia", "proporcao_transmitida_pct", "valor_venal_ref_proporcional",
@@ -212,6 +247,7 @@ def limpar(bruto: pd.DataFrame) -> pd.DataFrame:
 
     # 2.5 Bairro informado: normalização (o campo vem muito sujo: "TORRE 1", "BL A"...)
     df["bairro_informado"] = df["bairro"].map(limpar_bairro)
+    df["logradouro_limpo"] = df["logradouro"].map(limpar_logradouro)
 
     # 2.6 Flags de qualidade para métricas
     df["valor_valido"] = (df["valor_transacao"] >= 10_000).astype(int)
@@ -264,6 +300,9 @@ def modelar(df: pd.DataFrame, usos: pd.DataFrame, padroes: pd.DataFrame) -> dict
     }).drop_duplicates("financiamento_id")
     dim_fin = pd.concat([pd.DataFrame({"financiamento_id": [0], "descricao": ["Sem financiamento"]}),
                          dim_fin]).sort_values("financiamento_id")
+    sem_desc = dim_fin["descricao"].fillna("").str.strip() == ""
+    dim_fin.loc[sem_desc, "descricao"] = ("Código " + dim_fin.loc[sem_desc, "financiamento_id"].astype(str)
+                                          + " (sem descrição na fonte)")
     dim_fin["financiado"] = (dim_fin["financiamento_id"] != 0).astype(int)
 
     # dim_uso e dim_padrao (tabelas oficiais da própria planilha)
@@ -285,6 +324,20 @@ def modelar(df: pd.DataFrame, usos: pd.DataFrame, padroes: pd.DataFrame) -> dict
     loc["zona"] = loc["cep_mod"].map(zona_por_cep)
     dim_local = loc[["setor_fiscal", "bairro", "zona"]]
 
+    # Dimensão estável: o nome de bairro de cada setor fica congelado em data/reference/dim_local.csv.
+    # Sem isso, carregar mais anos mudaria o "bairro mais frequente" de alguns setores e as mesmas
+    # perguntas passariam a ter respostas diferentes. Setores novos recebem o nome calculado acima.
+    if REF_LOCAL.exists():
+        ref = pd.read_csv(REF_LOCAL, dtype=str)
+        novos = dim_local[~dim_local["setor_fiscal"].isin(ref["setor_fiscal"])]
+        dim_local = pd.concat([ref[ref["setor_fiscal"].isin(dim_local["setor_fiscal"])], novos],
+                              ignore_index=True)
+        log(f"[modelagem] dim_local: {len(dim_local) - len(novos)} setores da referência, {len(novos)} novos")
+    else:
+        REF_LOCAL.parent.mkdir(parents=True, exist_ok=True)
+        dim_local.to_csv(REF_LOCAL, index=False)
+        log(f"[modelagem] referência de bairros criada em {REF_LOCAL.relative_to(ROOT)}")
+
     # fato
     fato = pd.DataFrame({
         "transacao_id": range(1, len(df) + 1),
@@ -298,6 +351,7 @@ def modelar(df: pd.DataFrame, usos: pd.DataFrame, padroes: pd.DataFrame) -> dict
         "sql_cadastro": df["sql_cadastro"].values,
         "cep": df["cep"].astype("Int64").astype(str).str.zfill(8).replace("0000<NA>", None).values,
         "bairro_informado": df["bairro_informado"].values,
+        "logradouro": df["logradouro_limpo"].values,
         "data_transacao": df["data_transacao"].dt.strftime("%Y-%m-%d").values,
         "valor_transacao": df["valor_transacao"].round(2).values,
         "valor_venal_referencia": df["valor_venal_referencia"].values,
@@ -349,7 +403,7 @@ CREATE TABLE fato_transacoes (
     financiamento_id INTEGER REFERENCES dim_financiamento(financiamento_id),
     uso_id INTEGER REFERENCES dim_uso(uso_id),
     padrao_id INTEGER REFERENCES dim_padrao(padrao_id),
-    sql_cadastro TEXT, cep TEXT, bairro_informado TEXT, data_transacao TEXT,
+    sql_cadastro TEXT, cep TEXT, bairro_informado TEXT, logradouro TEXT, data_transacao TEXT,
     valor_transacao REAL, valor_venal_referencia REAL, proporcao_transmitida_pct REAL,
     valor_venal_ref_proporcional REAL, base_calculo REAL, valor_financiado REAL,
     area_terreno_m2 REAL, area_construida_m2 REAL, fracao_ideal REAL, ano_construcao INTEGER,
@@ -359,6 +413,7 @@ CREATE INDEX ix_fato_mes ON fato_transacoes(mes_id);
 CREATE INDEX ix_fato_setor ON fato_transacoes(setor_fiscal);
 CREATE INDEX ix_fato_uso ON fato_transacoes(uso_id);
 CREATE INDEX ix_fato_nat ON fato_transacoes(natureza_id);
+CREATE INDEX ix_fato_logr ON fato_transacoes(logradouro);
 """
 
 
@@ -418,7 +473,8 @@ def testes_qualidade() -> bool:
     v = q("SELECT COUNT(*) FROM fato_transacoes WHERE elegivel_m2 = 1 AND preco_m2 IS NULL")
     testes.append(("preco_m2 preenchido quando elegível", v == 0, v))
     v = q("SELECT COUNT(DISTINCT mes_id) FROM fato_transacoes")
-    testes.append(("24 meses (2024 e 2025) carregados", v == 24, v))
+    anos = q("SELECT COUNT(DISTINCT ano) FROM dim_tempo")
+    testes.append((f"12 meses para cada um dos {anos} anos carregados", v == 12 * anos, v))
 
     log("\n=== TESTES DE QUALIDADE ===")
     todos_ok = True

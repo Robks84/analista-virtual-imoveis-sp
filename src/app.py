@@ -14,7 +14,7 @@ import streamlit as st
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from orchestrator import AnalistaVirtual  # noqa: E402
-from tools import DB_PATH, make_chart     # noqa: E402
+from tools import DB_PATH, make_chart, periodo  # noqa: E402
 
 st.set_page_config(page_title="Analista Virtual — Imóveis SP", page_icon="🏙️", layout="wide")
 
@@ -40,7 +40,7 @@ def mostrar_resposta(r: dict) -> None:
         with aba_tabela:
             st.dataframe(df, use_container_width=True, hide_index=True)
         with aba_grafico:
-            fig = make_chart(r["colunas"], r["linhas"])
+            fig = make_chart(r["colunas"], r["linhas"], r.get("pergunta_reformulada") or r.get("pergunta"))
             if fig is not None:
                 st.pyplot(fig)
             else:
@@ -61,7 +61,7 @@ def mostrar_resposta(r: dict) -> None:
 with st.sidebar:
     st.header("🏙️ Analista Virtual")
     st.write("Pergunte sobre as **transações imobiliárias de São Paulo** com ITBI pago "
-             "(jan/2024 a dez/2025, fonte: Prefeitura de SP).")
+             f"({periodo()['texto']}, fonte: Prefeitura de SP).")
     st.subheader("Exemplos")
     for ex in EXEMPLOS:
         if st.button(ex, use_container_width=True):

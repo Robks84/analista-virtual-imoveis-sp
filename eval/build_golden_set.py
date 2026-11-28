@@ -35,7 +35,7 @@ GOLDEN = [
      f"SELECT ROUND(AVG(f.preco_m2), 2) AS preco_medio_m2 FROM fato_transacoes f {J_T} "
      "WHERE t.ano = 2025 AND f.elegivel_m2 = 1"),
     ("F06", "facil", "dados", "Quantos imóveis foram arrematados em leilão em 2024 e 2025 somados?",
-     "SELECT COUNT(*) AS qtd_leiloes FROM fato_transacoes f WHERE f.natureza_id = 4"),
+     f"SELECT COUNT(*) AS qtd_leiloes FROM fato_transacoes f {J_T} WHERE t.ano IN (2024, 2025) AND f.natureza_id = 4"),
     ("F07", "facil", "dados", "Quanto foi financiado no total (crédito imobiliário) em 2025?",
      f"SELECT ROUND(SUM(f.valor_financiado), 2) AS valor_financiado_total FROM fato_transacoes f {J_T} "
      "WHERE t.ano = 2025 AND f.financiamento_id <> 0"),

@@ -1,7 +1,7 @@
 # Analista Virtual — Mercado Imobiliário de São Paulo
 
 Sistema multiagente que responde, em linguagem natural, perguntas de negócio sobre as
-**transações imobiliárias da cidade de São Paulo com ITBI pago (jan/2024 a dez/2025)**.
+**transações imobiliárias da cidade de São Paulo com ITBI pago (jan/2019 a dez/2025)**.
 Ele traduz a pergunta para SQL, valida, executa e devolve uma resposta de negócio com
 texto, tabela e o SQL usado.
 
@@ -60,8 +60,8 @@ flowchart LR
 
 | # | Agente | Responsabilidade | Ferramentas |
 |---|---|---|---|
-| 1 | **Orquestrador** (`agents.Orquestrador`) | Classifica a pergunta em `dados`, `fora_escopo` ou `ambigua`; recusa com educação ou pede esclarecimento; busca na camada semântica tabelas, métricas, sinônimos e regras e monta um plano | `get_schema()`, `get_metric()` |
-| 2 | **Agente SQL** (`agents.AgenteSQL`) | Escreve o SQL a partir do plano, valida antes de executar, executa e, se der erro, corrige — **no máximo 3 execuções** (limite imposto no código) | `validate_sql()`, `run_sql()` |
+| 1 | **Orquestrador** (`agents.Orquestrador`) | Classifica a pergunta em `dados`, `fora_escopo` ou `ambigua`; completa perguntas de continuação ("e em 2023?") com a conversa anterior; aplica leituras padrão ("mais caro" = preço do m²) em vez de devolver a pergunta; recusa com educação ou pede esclarecimento só para critérios subjetivos; busca na camada semântica tabelas, métricas, sinônimos e regras e monta um plano | `get_schema()`, `get_metric()` |
+| 2 | **Agente SQL** (`agents.AgenteSQL`) | Acha o nome exato de bairros e ruas digitados de qualquer jeito, escreve o SQL a partir do plano, valida antes de executar, executa e, se der erro ou vier vazio, corrige — **no máximo 3 execuções** (limite imposto no código) | `buscar_local()`, `validate_sql()`, `run_sql()` |
 | 3 | **Analista** (`agents.Analista`) | Transforma o resultado em resposta de negócio: números, comparações, ressalvas e próxima pergunta sugerida | `make_chart()` (na interface) |
 
 O fluxo entre eles está em `src/orchestrator.py`. Cada resposta registra tempo, tentativas de SQL,
@@ -87,7 +87,7 @@ Os guardrails estão no **código**, não só no prompt — testados em `tests/t
 ## 3. Dados e modelagem
 
 **Fonte:** Prefeitura de São Paulo — Secretaria Municipal da Fazenda, *Dados das Transações
-Imobiliárias com recolhimento de ITBI* (arquivos de 2024 e 2025). Cada linha é uma Declaração de
+Imobiliárias com recolhimento de ITBI* (arquivos de 2019 a 2025; o código carrega todos os `.xlsx` de `data/raw/`). Cada linha é uma Declaração de
 Transação Imobiliária (DTI) efetivamente paga. A base não contém nomes nem CPF de compradores/vendedores.
 
 **Modelo estrela** (`data/processed/itbi.db`, gerado por `src/load_data.py`):
@@ -104,9 +104,9 @@ erDiagram
 
 | Tabela | Linhas | Conteúdo |
 |---|---:|---|
-| `fato_transacoes` | 446.916 | valores, áreas, datas, flags de qualidade (`valor_valido`, `elegivel_m2`) e `preco_m2` |
-| `dim_tempo` | 24 | mês de pagamento do ITBI (ano, mês, trimestre, semestre) |
-| `dim_local` | 288 | setor fiscal do IPTU → bairro de referência e zona |
+| `fato_transacoes` | ver `relatorio_qualidade.txt` | valores, áreas, datas, flags de qualidade (`valor_valido`, `elegivel_m2`) e `preco_m2` |
+| `dim_tempo` | 12 por ano | mês de pagamento do ITBI (ano, mês, trimestre, semestre) |
+| `dim_local` | ~290 | setor fiscal do IPTU → bairro de referência e zona |
 | `dim_natureza` | 34 | tipo de negócio (compra e venda, leilão, permuta…) e grupo |
 | `dim_financiamento` | 5 | sem financiamento, SFH, MCMV, consórcio, SFI |
 | `dim_uso` | 36 | uso do IPTU + categoria (apartamento, casa, terreno, garagem…) |
@@ -120,6 +120,10 @@ erDiagram
 - **Bairro:** o campo original é ~40% nulo e traz lixo (“TORRE 1”, “BL A”). A localização passou a ser o
   **setor fiscal** (3 primeiros dígitos do cadastro SQL), com o bairro mais frequente (normalizado) como
   nome de referência. A **zona** é aproximada pelas faixas de CEP.
+- **Dimensão estável:** o nome de bairro de cada setor fica congelado em `data/reference/dim_local.csv`. Sem isso,
+  carregar mais anos mudava o "bairro mais frequente" de alguns setores (ex.: um setor passava de JARDIM AMERICA para
+  HIGIENOPOLIS) e as mesmas perguntas do golden set mudavam de resposta. Setores novos recebem o nome calculado.
+- **Transações sem valor declarado** (valor = 0) são removidas.
 - **Preço do m²:** em empreendimentos novos a área construída é a do prédio inteiro. Por isso o preço do m²
   só é calculado para `elegivel_m2 = 1`: compra e venda, imóvel 100% transmitido, uso residencial, área de 15 a
   2.000 m² e preço entre R$ 500 e R$ 50 mil/m².
@@ -128,7 +132,7 @@ erDiagram
 ### Testes de qualidade (rodam a cada carga)
 
 Nulos em chaves, unicidade das PKs, **chaves órfãs** entre fato e cada dimensão, domínio de valores,
-regra do ITBI (base de cálculo ≥ valor declarado), volume mínimo (≥ 5.000 linhas, ≥ 8 colunas) e cobertura dos 24 meses.
+regra do ITBI (base de cálculo ≥ valor declarado), volume mínimo (≥ 5.000 linhas, ≥ 8 colunas) e 12 meses para cada ano carregado.
 
 ---
 
@@ -172,14 +176,29 @@ regra do ITBI (base de cálculo ≥ valor declarado), volume mínimo (≥ 5.000 
 
 ---
 
-## 7. Limitações conhecidas
+## 7. Melhorias depois da entrega (v2)
+
+Testes com perguntas livres mostraram 4 pontos fracos, todos corrigidos:
+
+| Pergunta de teste | Antes | Correção |
+|---|---|---|
+| "Quais as ruas com mais vendas em Pinheiros?" | Recusava: a rua não estava no modelo | Coluna `logradouro` padronizada (R → RUA, AV → AVENIDA), sem número/complemento |
+| "Qual o bairro mais caro de São Paulo?" | Devolvia a pergunta pedindo o critério | Leituras padrão na camada semântica: assume preço do m², avisa e oferece outro critério |
+| "E em 2023?" (continuação) | Não sabia do que se tratava | Memória curta da conversa (últimas 3 trocas) + botão "Nova conversa" |
+| Gráfico de evolução | Eixo sem zero exagerava a subida; sem valores nem títulos | Eixo a partir do zero, valores escritos, nomes em português |
+
+Também: ferramenta `buscar_local` (acentos, minúsculas, erros de digitação e o apelido "Jardins"), função `MEDIAN` no SQLite
+e um Analista proibido de especular causas e obrigado a informar o tamanho da amostra. As 20 perguntas do golden set
+continuam com a mesma resposta esperada.
+
+## 8. Limitações conhecidas
 
 - Bairro de referência e zona são **aproximações** (setor fiscal e CEP), não a divisão oficial de distritos.
 - Preço do m² usa a área construída do IPTU, que inclui áreas comuns — tende a ficar abaixo do preço “de anúncio”.
 - Valores nominais (sem correção pela inflação). Datas pelo mês de pagamento do ITBI.
 - A base não tem aluguel nem dados de pessoas.
 
-## 8. Estrutura
+## 9. Estrutura
 
 ```
 projeto/

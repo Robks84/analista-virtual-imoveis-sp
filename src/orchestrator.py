@@ -19,6 +19,7 @@ from dataclasses import asdict, dataclass, field
 from typing import Any
 
 from agents import LLM, AgenteSQL, Analista, CotaDiariaEsgotada, Orquestrador, Plano
+from tools import periodo
 
 
 @dataclass
@@ -26,6 +27,7 @@ class RespostaFinal:
     pergunta: str
     classificacao: str
     texto: str
+    pergunta_reformulada: str = ""
     sql: str = ""
     colunas: list[str] = field(default_factory=list)
     linhas: list[list[Any]] = field(default_factory=list)
@@ -73,7 +75,7 @@ class AnalistaVirtual:
         if plano.classificacao != "dados":
             texto = plano.mensagem_usuario or (
                 "Desculpe, só consigo responder perguntas sobre transações imobiliárias da cidade de "
-                "São Paulo em 2024 e 2025 (quantidade, valores, preço do m², financiamento, bairros e zonas)."
+                f"São Paulo de {periodo()['texto']} (quantidade, valores, preço do m², financiamento, bairros e zonas)."
                 if plano.classificacao == "fora_escopo" else
                 "Pode detalhar um pouco mais? Por exemplo, qual métrica (preço do m², volume, número de vendas) "
                 "e qual período você quer analisar?")
@@ -81,6 +83,7 @@ class AnalistaVirtual:
 
         res = self.agente_sql.executar(plano, pergunta)
         base = dict(pergunta=pergunta, classificacao="dados", sql=res.sql, suposicoes=plano.suposicoes,
+                    pergunta_reformulada=plano.pergunta_reformulada or pergunta,
                     tentativas_sql=res.tentativas, sql_valido_primeira=res.valido_primeira,
                     historico_sql=res.historico_sql)
         if not res.ok:

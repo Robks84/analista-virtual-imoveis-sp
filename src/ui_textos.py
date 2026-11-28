@@ -15,27 +15,37 @@ SUBTITULO = (
     "no banco, e o SQL usado aparece sempre."
 )
 
+def escopo() -> str:
+    from tools import periodo
+    p = periodo()
+    n = f"{p['transacoes']:,}".replace(",", ".")
+    return ESCOPO.replace("{PERIODO}", p["texto"]).replace("{N}", n)
+
+
 ESCOPO = """### Escopo da base
 - **Fonte:** Prefeitura de SP — transações com ITBI pago (dados abertos)
-- **Período:** jan/2024 a dez/2025 (mês de pagamento do ITBI)
-- **Registros:** 446.916 transações
+- **Período:** {PERIODO} (mês de pagamento do ITBI)
+- **Registros:** {N} transações
 - **Moeda:** reais (R$ nominais)
 - **Modelo:** esquema estrela (`fato_transacoes` + 6 dimensões)
 - **Travas:** somente `SELECT`, `LIMIT` automático, tempo limite de 10 s, sem dados de pessoas
 """
 
 AVISO_MEMORIA = (
-    "Cada pergunta é respondida de forma independente. Para continuar uma análise, repita o contexto: "
-    "*\"preço do m² em Pinheiros em 2025\"* em vez de *\"e em 2025?\"*."
+    "O analista lembra das últimas perguntas: dá para continuar com *\"e em 2023?\"* ou *\"e na Mooca?\"*. "
+    "Para mudar de assunto, clique em **Nova conversa**."
 )
 
 EXEMPLOS = [
     "Quantas vendas de apartamentos tivemos em 2025?",
     "Qual o preço médio do m² por zona em 2025?",
     "Top 10 bairros com maior volume financeiro em 2024",
+    "Como evoluiu o preço médio do m² ano a ano?",
     "Como evoluiu o número de vendas mês a mês em 2025?",
     "Qual o percentual de vendas financiadas em Moema em 2025?",
     "Quantos imóveis foram arrematados em leilão em 2025?",
+    "Qual o bairro mais caro de São Paulo?",
+    "Quais as ruas com mais vendas em Pinheiros em 2025?",
     "Qual vai ser o preço do m² em 2030?",
 ]
 
@@ -43,8 +53,8 @@ COMO_FUNCIONA = """### Três agentes dividem o trabalho
 
 | # | Agente | O que faz | Ferramentas |
 |---|---|---|---|
-| 1 | **Orquestrador** | Classifica a pergunta (dados, fora de escopo ou ambígua). Recusa com educação ou pede esclarecimento quando precisa. Busca na camada semântica as tabelas, métricas e regras e monta o plano | `get_schema`, `get_metric` |
-| 2 | **Agente SQL** | Escreve o SQL a partir do plano, valida, executa e corrige se der erro (até 3 tentativas). Se a consulta volta vazia, revisa os filtros | `validate_sql`, `run_sql` |
+| 1 | **Orquestrador** | Classifica a pergunta (dados, fora de escopo ou ambígua) e completa perguntas de continuação ("e em 2023?") com a conversa anterior. Recusa com educação ou pede esclarecimento quando o critério é subjetivo. Busca na camada semântica as tabelas, métricas e regras e monta o plano | `get_schema`, `get_metric` |
+| 2 | **Agente SQL** | Acha o nome exato de bairros e ruas, escreve o SQL a partir do plano, valida, executa e corrige se der erro (até 3 tentativas). Se a consulta volta vazia, revisa os filtros | `buscar_local`, `validate_sql`, `run_sql` |
 | 3 | **Analista** | Transforma o resultado em resposta de negócio: números, destaques, ressalvas e uma próxima pergunta sugerida | — |
 
 ### Camada semântica — a "memória do analista"
